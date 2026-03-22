@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type MutableRefObject } from "react";
+import { useEffect, useRef, useLayoutEffect, type MutableRefObject } from "react";
 
 /** Latest pointer position in canvas CSS pixels (same space as drawing after DPR scale). */
 export type PointerCanvasState = {
@@ -35,8 +35,8 @@ function updatePointerCanvasState(
 const MAX_PARTICLES = 56;
 const MAX_BUBBLES = 24;
 /** Cursor / touch trail bubbles — small pool, same look as background bubbles. */
-const MAX_POINTER_BUBBLES = 32;
-const FISH_COUNT = 6;
+const MAX_POINTER_BUBBLES = 40;
+const FISH_COUNT = 10;
 
 /** 0 = behind midground, 1 = between midground & seaweed, 2 = in front of seaweed (near glass). */
 const FISH_DEPTH_BACK = 0;
@@ -545,16 +545,26 @@ function drawPointerBubbles(
   ctx.restore();
 }
 
+export type AquariumAmbience = "day" | "night";
+
 function drawUnderwaterBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
+  ambience: AquariumAmbience,
 ) {
   const gradient = ctx.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "#c4e8f2");
-  gradient.addColorStop(0.35, "#6eb8cc");
-  gradient.addColorStop(0.72, "#2a6b7c");
-  gradient.addColorStop(1, "#0c2f38");
+  if (ambience === "day") {
+    gradient.addColorStop(0, "#dff6ff");
+    gradient.addColorStop(0.32, "#7ec8de");
+    gradient.addColorStop(0.68, "#3a8a9c");
+    gradient.addColorStop(1, "#124850");
+  } else {
+    gradient.addColorStop(0, "#1a3540");
+    gradient.addColorStop(0.38, "#0f2830");
+    gradient.addColorStop(0.72, "#061820");
+    gradient.addColorStop(1, "#020a0c");
+  }
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
 
@@ -566,8 +576,13 @@ function drawUnderwaterBackground(
     height * 0.15,
     width * 0.65,
   );
-  glow.addColorStop(0, "rgba(255, 255, 255, 0.12)");
-  glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+  if (ambience === "day") {
+    glow.addColorStop(0, "rgba(255, 255, 255, 0.22)");
+    glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+  } else {
+    glow.addColorStop(0, "rgba(140, 190, 220, 0.08)");
+    glow.addColorStop(1, "rgba(255, 255, 255, 0)");
+  }
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, width, height);
 }
@@ -736,9 +751,14 @@ function drawForegroundSeaweed(
 type AquariumCanvasProps = {
   /** Optional ref to read the latest pointer position in canvas coordinates (no re-renders). */
   pointerCanvasRef?: MutableRefObject<PointerCanvasState>;
+  /** Water and light treatment; read on each frame via ref so toggling does not restart the loop. */
+  ambience?: AquariumAmbience;
 };
 
-export default function AquariumCanvas({ pointerCanvasRef: pointerCanvasRefProp }: AquariumCanvasProps = {}) {
+export default function AquariumCanvas({
+  pointerCanvasRef: pointerCanvasRefProp,
+  ambience = "night",
+}: AquariumCanvasProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerCanvasRefInternal = useRef<PointerCanvasState>({
@@ -747,6 +767,10 @@ export default function AquariumCanvas({ pointerCanvasRef: pointerCanvasRefProp 
     inCanvas: false,
   });
   const pointerCanvasRef = pointerCanvasRefProp ?? pointerCanvasRefInternal;
+  const ambienceRef = useRef<AquariumAmbience>(ambience);
+  useLayoutEffect(() => {
+    ambienceRef.current = ambience;
+  }, [ambience]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -867,7 +891,7 @@ export default function AquariumCanvas({ pointerCanvasRef: pointerCanvasRefProp 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
 
-      drawUnderwaterBackground(ctx, cssW, cssH);
+      drawUnderwaterBackground(ctx, cssW, cssH, ambienceRef.current);
       drawDistantReef(ctx, cssW, cssH);
       drawDriftParticles(ctx, buf);
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_BACK);
