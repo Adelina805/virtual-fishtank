@@ -36,7 +36,10 @@ const MAX_PARTICLES = 56;
 const MAX_BUBBLES = 24;
 /** Cursor / touch trail bubbles — small pool, same look as background bubbles. */
 const MAX_POINTER_BUBBLES = 40;
-const FISH_COUNT = 10;
+/** Default school size (user can add fish up to `MAX_FISH_COUNT`). */
+export const DEFAULT_FISH_COUNT = 10;
+/** Upper bound for extra fish — keeps mobile GPUs happier. */
+export const MAX_FISH_COUNT = 28;
 
 /** 0 = behind midground, 1 = between midground & seaweed, 2 = in front of seaweed (near glass). */
 const FISH_DEPTH_BACK = 0;
@@ -78,56 +81,61 @@ const FISH_PALETTES = [
 
 type FishPalette = (typeof FISH_PALETTES)[number];
 
-function createFishSchool(): FishSchool {
+function createFishSchool(capacity: number): FishSchool {
   return {
-    x: new Float32Array(FISH_COUNT),
-    y: new Float32Array(FISH_COUNT),
-    speed: new Float32Array(FISH_COUNT),
-    dir: new Float32Array(FISH_COUNT),
-    size: new Float32Array(FISH_COUNT),
-    bobPhase: new Float32Array(FISH_COUNT),
-    vxOff: new Float32Array(FISH_COUNT),
-    vyOff: new Float32Array(FISH_COUNT),
-    speedBoost: new Float32Array(FISH_COUNT),
-    depth: new Uint8Array(FISH_COUNT),
-    paletteId: new Uint8Array(FISH_COUNT),
+    x: new Float32Array(capacity),
+    y: new Float32Array(capacity),
+    speed: new Float32Array(capacity),
+    dir: new Float32Array(capacity),
+    size: new Float32Array(capacity),
+    bobPhase: new Float32Array(capacity),
+    vxOff: new Float32Array(capacity),
+    vyOff: new Float32Array(capacity),
+    speedBoost: new Float32Array(capacity),
+    depth: new Uint8Array(capacity),
+    paletteId: new Uint8Array(capacity),
   };
 }
 
-function resetFish(fish: FishSchool, w: number, h: number) {
+/** Two per depth band — cycles for fish beyond the first six. */
+const FISH_DEPTH_CYCLE: readonly number[] = [
+  FISH_DEPTH_BACK,
+  FISH_DEPTH_BACK,
+  FISH_DEPTH_MID,
+  FISH_DEPTH_MID,
+  FISH_DEPTH_FRONT,
+  FISH_DEPTH_FRONT,
+];
+
+function initFishIndex(fish: FishSchool, i: number, w: number, h: number) {
   const top = h * 0.14;
   const bottom = h * 0.86;
-  /** Two fish per depth band — back / mid-water / near glass. */
-  const depths: readonly number[] = [
-    FISH_DEPTH_BACK,
-    FISH_DEPTH_BACK,
-    FISH_DEPTH_MID,
-    FISH_DEPTH_MID,
-    FISH_DEPTH_FRONT,
-    FISH_DEPTH_FRONT,
-  ];
   const nPalettes = FISH_PALETTES.length;
-  for (let i = 0; i < FISH_COUNT; i++) {
-    fish.x[i] = Math.random() * w;
-    fish.y[i] = top + Math.random() * (bottom - top);
-    fish.dir[i] = Math.random() < 0.5 ? -1 : 1;
-    fish.bobPhase[i] = Math.random() * Math.PI * 2;
-    fish.vxOff[i] = 0;
-    fish.vyOff[i] = 0;
-    fish.speedBoost[i] = 0;
-    fish.depth[i] = depths[i]!;
-    fish.paletteId[i] = (Math.random() * nPalettes) | 0;
+  fish.x[i] = Math.random() * w;
+  fish.y[i] = top + Math.random() * (bottom - top);
+  fish.dir[i] = Math.random() < 0.5 ? -1 : 1;
+  fish.bobPhase[i] = Math.random() * Math.PI * 2;
+  fish.vxOff[i] = 0;
+  fish.vyOff[i] = 0;
+  fish.speedBoost[i] = 0;
+  fish.depth[i] = FISH_DEPTH_CYCLE[i % FISH_DEPTH_CYCLE.length]!;
+  fish.paletteId[i] = (Math.random() * nPalettes) | 0;
 
-    const sizeT = Math.random();
-    fish.size[i] = 0.72 + sizeT * 0.78;
-    const baseSpeed = 14 + Math.random() * 62;
-    const depthSpeedMul =
-      fish.depth[i] === FISH_DEPTH_BACK
-        ? 0.78 + Math.random() * 0.12
-        : fish.depth[i] === FISH_DEPTH_FRONT
-          ? 1.02 + Math.random() * 0.14
-          : 0.9 + Math.random() * 0.14;
-    fish.speed[i] = baseSpeed * depthSpeedMul;
+  const sizeT = Math.random();
+  fish.size[i] = 0.72 + sizeT * 0.78;
+  const baseSpeed = 14 + Math.random() * 62;
+  const depthSpeedMul =
+    fish.depth[i] === FISH_DEPTH_BACK
+      ? 0.78 + Math.random() * 0.12
+      : fish.depth[i] === FISH_DEPTH_FRONT
+        ? 1.02 + Math.random() * 0.14
+        : 0.9 + Math.random() * 0.14;
+  fish.speed[i] = baseSpeed * depthSpeedMul;
+}
+
+function resetFish(fish: FishSchool, w: number, h: number, count: number) {
+  for (let i = 0; i < count; i++) {
+    initFishIndex(fish, i, w, h);
   }
 }
 
@@ -138,6 +146,7 @@ function stepFish(
   h: number,
   dt: number,
   pointer: PointerCanvasState,
+  count: number,
 ) {
   const margin = 40;
   const top = h * 0.14;
@@ -153,7 +162,7 @@ function stepFish(
   const pointerBoostPerSec = 2.4;
   const boostDecayPerSec = 2.15;
 
-  for (let i = 0; i < FISH_COUNT; i++) {
+  for (let i = 0; i < count; i++) {
     let targetVx = 0;
     let targetVy = 0;
 
@@ -289,8 +298,9 @@ function drawFishSchool(
   fish: FishSchool,
   timeSec: number,
   depthPass: number,
+  count: number,
 ) {
-  for (let i = 0; i < FISH_COUNT; i++) {
+  for (let i = 0; i < count; i++) {
     if (fish.depth[i] !== depthPass) continue;
     const bobHz = 0.95 + i * 0.11;
     const bobAmp =
@@ -849,11 +859,21 @@ type AquariumCanvasProps = {
   pointerCanvasRef?: MutableRefObject<PointerCanvasState>;
   /** Water and light treatment; read on each frame via ref so toggling does not restart the loop. */
   ambience?: AquariumAmbience;
+  /** School size; values outside DEFAULT…MAX are clamped. */
+  fishCount?: number;
 };
+
+function clampFishCount(n: number) {
+  return Math.min(
+    MAX_FISH_COUNT,
+    Math.max(DEFAULT_FISH_COUNT, Math.floor(n)),
+  );
+}
 
 export default function AquariumCanvas({
   pointerCanvasRef: pointerCanvasRefProp,
   ambience = "night",
+  fishCount = DEFAULT_FISH_COUNT,
 }: AquariumCanvasProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -868,6 +888,11 @@ export default function AquariumCanvas({
     ambienceRef.current = ambience;
   }, [ambience]);
 
+  const fishCountRef = useRef(clampFishCount(fishCount));
+  useLayoutEffect(() => {
+    fishCountRef.current = clampFishCount(fishCount);
+  }, [fishCount]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -877,11 +902,12 @@ export default function AquariumCanvas({
 
     const buf = createBuffers();
     const pointerBubbles = createPointerBubbleBuf();
-    const fish = createFishSchool();
+    const fish = createFishSchool(MAX_FISH_COUNT);
     let rafId = 0;
     let lastCssW = -1;
     let lastCssH = -1;
     let lastNow = 0;
+    let lastAppliedFishCount = 0;
 
     const pointerSpawn = {
       lastT: 0,
@@ -969,6 +995,8 @@ export default function AquariumCanvas({
       const dt = Math.min(0.05, Math.max(0, (now - lastNow) / 1000));
       lastNow = now;
 
+      const n = fishCountRef.current;
+
       if (cssW !== lastCssW || cssH !== lastCssH) {
         canvas.width = Math.round(cssW * dpr);
         canvas.height = Math.round(cssH * dpr);
@@ -976,13 +1004,21 @@ export default function AquariumCanvas({
         lastCssH = cssH;
         resetParticlesAndBubbles(buf, cssW, cssH);
         clearPointerBubbles(pointerBubbles);
-        resetFish(fish, cssW, cssH);
+        resetFish(fish, cssW, cssH, n);
+        lastAppliedFishCount = n;
+      } else if (n !== lastAppliedFishCount) {
+        if (n > lastAppliedFishCount) {
+          for (let i = lastAppliedFishCount; i < n; i++) {
+            initFishIndex(fish, i, cssW, cssH);
+          }
+        }
+        lastAppliedFishCount = n;
       }
 
       stepParticles(buf, cssW, cssH, dt);
       stepBubbles(buf, cssW, cssH, dt, timeSec);
       stepPointerBubbles(pointerBubbles, cssW, dt, timeSec);
-      stepFish(fish, cssW, cssH, dt, pointerCanvasRef.current);
+      stepFish(fish, cssW, cssH, dt, pointerCanvasRef.current, n);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
@@ -990,11 +1026,11 @@ export default function AquariumCanvas({
       drawUnderwaterBackground(ctx, cssW, cssH, ambienceRef.current, timeSec);
       drawDistantReef(ctx, cssW, cssH);
       drawDriftParticles(ctx, buf, ambienceRef.current);
-      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_BACK);
+      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_BACK, n);
       drawMidgroundRocksAndPlants(ctx, cssW, cssH, timeSec);
-      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_MID);
+      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_MID, n);
       drawForegroundSeaweed(ctx, cssW, cssH, timeSec);
-      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_FRONT);
+      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_FRONT, n);
       drawBubbles(ctx, buf, timeSec);
       drawPointerBubbles(ctx, pointerBubbles, timeSec);
 

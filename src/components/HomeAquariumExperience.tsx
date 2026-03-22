@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import AquariumCanvas from "@/src/components/AquariumCanvas";
+import AquariumCanvas, {
+  DEFAULT_FISH_COUNT,
+  MAX_FISH_COUNT,
+} from "@/src/components/AquariumCanvas";
 import FloatingControlPanel from "@/src/components/FloatingControlPanel";
 
 export default function HomeAquariumExperience() {
   const [isNight, setIsNight] = useState(true);
+  const [fishCount, setFishCount] = useState(DEFAULT_FISH_COUNT);
 
   return (
     <div
@@ -16,7 +20,10 @@ export default function HomeAquariumExperience() {
       }
     >
       <div className="absolute inset-0 z-0 min-h-0">
-        <AquariumCanvas ambience={isNight ? "night" : "day"} />
+        <AquariumCanvas
+          ambience={isNight ? "night" : "day"}
+          fishCount={fishCount}
+        />
       </div>
 
       <header className="absolute left-0 top-0 z-10 max-w-md p-6 sm:p-8">
@@ -52,7 +59,14 @@ export default function HomeAquariumExperience() {
       <aside className="absolute bottom-5 right-5 z-10 sm:bottom-8 sm:right-8">
         <FloatingControlPanel
           isNight={isNight}
-          onToggle={() => setIsNight((v) => !v)}
+          onToggleDayNight={() => setIsNight((v) => !v)}
+          fishCount={fishCount}
+          defaultFishCount={DEFAULT_FISH_COUNT}
+          maxFishCount={MAX_FISH_COUNT}
+          onAddFish={() =>
+            setFishCount((c) => Math.min(MAX_FISH_COUNT, c + 1))
+          }
+          onResetFish={() => setFishCount(DEFAULT_FISH_COUNT)}
         />
       </aside>
     </div>
