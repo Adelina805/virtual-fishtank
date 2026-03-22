@@ -7,6 +7,11 @@ const MAX_PARTICLES = 56;
 const MAX_BUBBLES = 24;
 const FISH_COUNT = 6;
 
+/** 0 = behind midground, 1 = between midground & seaweed, 2 = in front of seaweed (near glass). */
+const FISH_DEPTH_BACK = 0;
+const FISH_DEPTH_MID = 1;
+const FISH_DEPTH_FRONT = 2;
+
 /** Simple fish: horizontal drift; vertical bob applied when drawing. */
 type FishSchool = {
   x: Float32Array;
@@ -15,6 +20,8 @@ type FishSchool = {
   dir: Float32Array;
   size: Float32Array;
   bobPhase: Float32Array;
+  /** Which compositing pass this fish belongs to (layered depth). */
+  depth: Uint8Array;
   color: readonly string[];
 };
 
@@ -35,6 +42,7 @@ function createFishSchool(): FishSchool {
     dir: new Float32Array(FISH_COUNT),
     size: new Float32Array(FISH_COUNT),
     bobPhase: new Float32Array(FISH_COUNT),
+    depth: new Uint8Array(FISH_COUNT),
     color: FISH_COLORS,
   };
 }
@@ -42,6 +50,15 @@ function createFishSchool(): FishSchool {
 function resetFish(fish: FishSchool, w: number, h: number) {
   const top = h * 0.14;
   const bottom = h * 0.86;
+  /** Two fish per depth band — back / mid-water / near glass. */
+  const depths: readonly number[] = [
+    FISH_DEPTH_BACK,
+    FISH_DEPTH_BACK,
+    FISH_DEPTH_MID,
+    FISH_DEPTH_MID,
+    FISH_DEPTH_FRONT,
+    FISH_DEPTH_FRONT,
+  ];
   for (let i = 0; i < FISH_COUNT; i++) {
     fish.x[i] = Math.random() * w;
     fish.y[i] = top + Math.random() * (bottom - top);
@@ -49,6 +66,7 @@ function resetFish(fish: FishSchool, w: number, h: number) {
     fish.dir[i] = Math.random() < 0.5 ? -1 : 1;
     fish.size[i] = 0.75 + Math.random() * 0.65;
     fish.bobPhase[i] = Math.random() * Math.PI * 2;
+    fish.depth[i] = depths[i]!;
   }
 }
 
@@ -68,10 +86,17 @@ function drawFish(
   size: number,
   dir: number,
   color: string,
+  depth: number,
 ) {
+  const depthScale =
+    depth === FISH_DEPTH_BACK ? 0.7 : depth === FISH_DEPTH_FRONT ? 1.14 : 1;
+  const alpha =
+    depth === FISH_DEPTH_BACK ? 0.78 : depth === FISH_DEPTH_FRONT ? 1 : 0.96;
+
   ctx.save();
+  ctx.globalAlpha *= alpha;
   ctx.translate(x, y);
-  ctx.scale(dir, 1);
+  ctx.scale(dir * depthScale, depthScale);
   const L = 22 * size;
   const H = 10 * size;
 
@@ -105,11 +130,21 @@ function drawFishSchool(
   ctx: CanvasRenderingContext2D,
   fish: FishSchool,
   timeSec: number,
+  depthPass: number,
 ) {
   for (let i = 0; i < FISH_COUNT; i++) {
+    if (fish.depth[i] !== depthPass) continue;
     const bobHz = 0.95 + i * 0.11;
+    const bobAmp =
+      fish.depth[i] === FISH_DEPTH_BACK
+        ? 0.72
+        : fish.depth[i] === FISH_DEPTH_FRONT
+          ? 1.08
+          : 1;
     const bob =
-      Math.sin(timeSec * bobHz + fish.bobPhase[i]) * (5 + fish.size[i] * 9);
+      Math.sin(timeSec * bobHz + fish.bobPhase[i]) *
+      (5 + fish.size[i] * 9) *
+      bobAmp;
     drawFish(
       ctx,
       fish.x[i],
@@ -117,6 +152,7 @@ function drawFishSchool(
       fish.size[i],
       fish.dir[i],
       fish.color[i]!,
+      fish.depth[i]!,
     );
   }
 }
@@ -484,9 +520,11 @@ export default function AquariumCanvas() {
       drawUnderwaterBackground(ctx, cssW, cssH);
       drawDistantReef(ctx, cssW, cssH);
       drawDriftParticles(ctx, buf);
+      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_BACK);
       drawMidgroundRocksAndPlants(ctx, cssW, cssH, timeSec);
-      drawFishSchool(ctx, fish, timeSec);
+      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_MID);
       drawForegroundSeaweed(ctx, cssW, cssH, timeSec);
+      drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_FRONT);
       drawBubbles(ctx, buf, timeSec);
 
       rafId = requestAnimationFrame(tick);
