@@ -34,6 +34,8 @@ function updatePointerCanvasState(
 /** Hard caps keep phones cool; count scales down with smaller canvases. */
 const MAX_PARTICLES = 56;
 const MAX_BUBBLES = 24;
+/** Cursor / touch trail bubbles — small pool, same look as background bubbles. */
+const MAX_POINTER_BUBBLES = 32;
 const FISH_COUNT = 6;
 
 /** 0 = behind midground, 1 = between midground & seaweed, 2 = in front of seaweed (near glass). */
@@ -288,28 +290,129 @@ function drawDriftParticles(
   ctx.restore();
 }
 
+function drawBubbleSprite(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  timeSec: number,
+  phase: number,
+  shimmerSeed: number,
+) {
+  ctx.lineWidth = 1;
+  const shimmer =
+    0.28 + Math.sin(timeSec * 0.35 + phase + shimmerSeed * 0.7) * 0.06;
+
+  ctx.globalAlpha = shimmer;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = shimmer + 0.12;
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
+  ctx.stroke();
+}
+
 function drawBubbles(
   ctx: CanvasRenderingContext2D,
   buf: FloatBuffers,
   timeSec: number,
 ) {
   ctx.save();
-  ctx.lineWidth = 1;
   for (let i = 0; i < buf.bCount; i++) {
     const x = buf.bx[i] + Math.sin(timeSec * 0.5 + buf.bPhase[i]) * 5;
     const y = buf.by[i];
     const r = buf.br[i];
-    const shimmer = 0.28 + Math.sin(timeSec * 0.35 + i * 0.7) * 0.06;
+    drawBubbleSprite(ctx, x, y, r, timeSec, buf.bPhase[i], i);
+  }
+  ctx.restore();
+}
 
-    ctx.globalAlpha = shimmer;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.14)";
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+type PointerBubbleBuf = {
+  px: Float32Array;
+  py: Float32Array;
+  pr: Float32Array;
+  pRise: Float32Array;
+  pPhase: Float32Array;
+  active: Uint8Array;
+};
 
-    ctx.globalAlpha = shimmer + 0.12;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
-    ctx.stroke();
+function createPointerBubbleBuf(): PointerBubbleBuf {
+  return {
+    px: new Float32Array(MAX_POINTER_BUBBLES),
+    py: new Float32Array(MAX_POINTER_BUBBLES),
+    pr: new Float32Array(MAX_POINTER_BUBBLES),
+    pRise: new Float32Array(MAX_POINTER_BUBBLES),
+    pPhase: new Float32Array(MAX_POINTER_BUBBLES),
+    active: new Uint8Array(MAX_POINTER_BUBBLES),
+  };
+}
+
+function clearPointerBubbles(pb: PointerBubbleBuf) {
+  pb.active.fill(0);
+}
+
+function spawnPointerBubble(
+  pb: PointerBubbleBuf,
+  cx: number,
+  cy: number,
+  w: number,
+  h: number,
+) {
+  let slot = -1;
+  for (let i = 0; i < MAX_POINTER_BUBBLES; i++) {
+    if (pb.active[i] === 0) {
+      slot = i;
+      break;
+    }
+  }
+  if (slot < 0) {
+    slot = (Math.random() * MAX_POINTER_BUBBLES) | 0;
+  }
+  const margin = 10;
+  pb.active[slot] = 1;
+  pb.px[slot] = Math.min(
+    w - margin,
+    Math.max(margin, cx + (Math.random() - 0.5) * 16),
+  );
+  pb.py[slot] = Math.min(
+    h - margin,
+    Math.max(margin, cy + (Math.random() - 0.5) * 12),
+  );
+  pb.pr[slot] = 0.75 + Math.random() * 1.35;
+  pb.pRise[slot] = 13 + Math.random() * 16;
+  pb.pPhase[slot] = Math.random() * Math.PI * 2;
+}
+
+function stepPointerBubbles(
+  pb: PointerBubbleBuf,
+  w: number,
+  dt: number,
+  timeSec: number,
+) {
+  for (let i = 0; i < MAX_POINTER_BUBBLES; i++) {
+    if (pb.active[i] === 0) continue;
+    pb.px[i] += Math.sin(timeSec * 0.22 + pb.pPhase[i]) * 2.2 * dt;
+    pb.py[i] -= pb.pRise[i] * dt;
+    if (pb.py[i] < -pb.pr[i] * 4) pb.active[i] = 0;
+    if (pb.px[i] < -24) pb.px[i] = w + 12;
+    if (pb.px[i] > w + 24) pb.px[i] = -12;
+  }
+}
+
+function drawPointerBubbles(
+  ctx: CanvasRenderingContext2D,
+  pb: PointerBubbleBuf,
+  timeSec: number,
+) {
+  ctx.save();
+  for (let i = 0; i < MAX_POINTER_BUBBLES; i++) {
+    if (pb.active[i] === 0) continue;
+    const x = pb.px[i] + Math.sin(timeSec * 0.5 + pb.pPhase[i]) * 5;
+    const y = pb.py[i];
+    const r = pb.pr[i];
+    drawBubbleSprite(ctx, x, y, r, timeSec, pb.pPhase[i], i + 0.37);
   }
   ctx.restore();
 }
@@ -525,11 +628,47 @@ export default function AquariumCanvas({ pointerCanvasRef: pointerCanvasRefProp 
     if (!ctx) return;
 
     const buf = createBuffers();
+    const pointerBubbles = createPointerBubbleBuf();
     const fish = createFishSchool();
     let rafId = 0;
     let lastCssW = -1;
     let lastCssH = -1;
     let lastNow = 0;
+
+    const pointerSpawn = {
+      lastT: 0,
+      lastX: 0,
+      lastY: 0,
+      initialized: false,
+    };
+
+    const trySpawnPointerTrail = () => {
+      const p = pointerCanvasRef.current;
+      if (!p.inCanvas) return;
+      const now = performance.now();
+      const w = Math.max(1, canvas.clientWidth);
+      const h = Math.max(1, canvas.clientHeight);
+      const dx = p.x - pointerSpawn.lastX;
+      const dy = p.y - pointerSpawn.lastY;
+      const dist = Math.hypot(dx, dy);
+      if (!pointerSpawn.initialized) {
+        pointerSpawn.initialized = true;
+        pointerSpawn.lastT = now;
+        pointerSpawn.lastX = p.x;
+        pointerSpawn.lastY = p.y;
+        return;
+      }
+      const elapsed = now - pointerSpawn.lastT;
+      if (elapsed < 0.055) return;
+      if (dist < 4 && elapsed < 0.38) return;
+      pointerSpawn.lastT = now;
+      pointerSpawn.lastX = p.x;
+      pointerSpawn.lastY = p.y;
+      spawnPointerBubble(pointerBubbles, p.x, p.y, w, h);
+      if (dist > 22 && Math.random() < 0.32) {
+        spawnPointerBubble(pointerBubbles, p.x, p.y, w, h);
+      }
+    };
 
     const onPointerClient = (clientX: number, clientY: number) => {
       updatePointerCanvasState(canvas, clientX, clientY, pointerCanvasRef.current);
@@ -537,18 +676,34 @@ export default function AquariumCanvas({ pointerCanvasRef: pointerCanvasRefProp 
 
     const onPointerMove = (e: PointerEvent) => {
       onPointerClient(e.clientX, e.clientY);
+      trySpawnPointerTrail();
     };
 
     const onPointerDown = (e: PointerEvent) => {
       onPointerClient(e.clientX, e.clientY);
+      const p = pointerCanvasRef.current;
+      if (!p.inCanvas) return;
+      const w = Math.max(1, canvas.clientWidth);
+      const h = Math.max(1, canvas.clientHeight);
+      const now = performance.now();
+      pointerSpawn.lastT = now;
+      pointerSpawn.lastX = p.x;
+      pointerSpawn.lastY = p.y;
+      pointerSpawn.initialized = true;
+      const burst = e.pointerType === "touch" || e.pointerType === "pen" ? 3 : 2;
+      for (let k = 0; k < burst; k++) {
+        spawnPointerBubble(pointerBubbles, p.x, p.y, w, h);
+      }
     };
 
     const onPointerLeave = () => {
       pointerCanvasRef.current.inCanvas = false;
+      pointerSpawn.initialized = false;
     };
 
     const onPointerCancel = () => {
       pointerCanvasRef.current.inCanvas = false;
+      pointerSpawn.initialized = false;
     };
 
     canvas.addEventListener("pointermove", onPointerMove);
@@ -572,11 +727,13 @@ export default function AquariumCanvas({ pointerCanvasRef: pointerCanvasRefProp 
         lastCssW = cssW;
         lastCssH = cssH;
         resetParticlesAndBubbles(buf, cssW, cssH);
+        clearPointerBubbles(pointerBubbles);
         resetFish(fish, cssW, cssH);
       }
 
       stepParticles(buf, cssW, cssH, dt);
       stepBubbles(buf, cssW, cssH, dt, timeSec);
+      stepPointerBubbles(pointerBubbles, cssW, dt, timeSec);
       stepFish(fish, cssW, dt);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -591,6 +748,7 @@ export default function AquariumCanvas({ pointerCanvasRef: pointerCanvasRefProp 
       drawForegroundSeaweed(ctx, cssW, cssH, timeSec);
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_FRONT);
       drawBubbles(ctx, buf, timeSec);
+      drawPointerBubbles(ctx, pointerBubbles, timeSec);
 
       rafId = requestAnimationFrame(tick);
     };
