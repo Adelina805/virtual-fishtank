@@ -62,8 +62,8 @@ function effectiveCanvasDpr(
 }
 
 /** Hard caps keep phones cool; count scales down with smaller canvases. */
-const MAX_PARTICLES = 56;
-const MAX_BUBBLES = 24;
+const MAX_PARTICLES = 40;
+const MAX_BUBBLES = 18;
 /** Cursor / touch trail bubbles — small pool, same look as background bubbles. */
 const MAX_POINTER_BUBBLES = 32;
 /** Default school size (user can add fish up to `MAX_FISH_COUNT`). */
@@ -402,37 +402,45 @@ function drawFish(
   const H = 10;
 
   ctx.fillStyle = getFishBodyGradient(ctx, paletteId);
-  ctx.beginPath();
-  ctx.ellipse(-L * 0.12, 0, L * 0.44, H * 0.48, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fill(FISH_BODY_PATH);
 
   ctx.fillStyle = palette.fin;
-  ctx.beginPath();
-  ctx.moveTo(-L * 0.52, 0);
-  ctx.lineTo(-L * 0.98, -H * 0.5);
-  ctx.lineTo(-L * 0.98, H * 0.5);
-  ctx.closePath();
-  ctx.fill();
+  ctx.fill(FISH_TAIL_PATH);
 
   // Lateral eye: sits inside the head ellipse (not past the snout).
   const ex = L * 0.17;
   const ey = H * 0.06;
   const eyeR = H * 0.17;
   ctx.fillStyle = "rgba(252, 252, 250, 0.94)";
-  ctx.beginPath();
-  ctx.ellipse(ex, ey, eyeR * 1.02, eyeR, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fill(FISH_EYE_WHITE_PATH);
   ctx.fillStyle = "#1a2e32";
-  ctx.beginPath();
-  ctx.arc(ex + H * 0.055, ey, H * 0.078, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fill(FISH_EYE_PUPIL_PATH);
   ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
-  ctx.beginPath();
-  ctx.arc(ex + H * 0.04, ey - H * 0.03, H * 0.028, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fill(FISH_EYE_HIGHLIGHT_PATH);
 
   ctx.restore();
 }
+
+/** Unit fish geometry reused for every draw (less per-frame path work). */
+const FISH_BODY_PATH = new Path2D();
+FISH_BODY_PATH.ellipse(-22 * 0.12, 0, 22 * 0.44, 10 * 0.48, 0, 0, Math.PI * 2);
+const FISH_TAIL_PATH = new Path2D();
+FISH_TAIL_PATH.moveTo(-22 * 0.52, 0);
+FISH_TAIL_PATH.lineTo(-22 * 0.98, -10 * 0.5);
+FISH_TAIL_PATH.lineTo(-22 * 0.98, 10 * 0.5);
+FISH_TAIL_PATH.closePath();
+const FISH_EYE_WHITE_PATH = new Path2D();
+FISH_EYE_WHITE_PATH.ellipse(22 * 0.17, 10 * 0.06, 10 * 0.17 * 1.02, 10 * 0.17, 0, 0, Math.PI * 2);
+const FISH_EYE_PUPIL_PATH = new Path2D();
+FISH_EYE_PUPIL_PATH.arc(22 * 0.17 + 10 * 0.055, 10 * 0.06, 10 * 0.078, 0, Math.PI * 2);
+const FISH_EYE_HIGHLIGHT_PATH = new Path2D();
+FISH_EYE_HIGHLIGHT_PATH.arc(
+  22 * 0.17 + 10 * 0.04,
+  10 * 0.06 - 10 * 0.03,
+  10 * 0.028,
+  0,
+  Math.PI * 2,
+);
 
 /** Horizontal slack so fish slightly past the edge still draw (body + bob is smaller than this). */
 const FISH_DRAW_MARGIN_X = 72;
@@ -513,7 +521,7 @@ function createBuffers(): FloatBuffers {
 
 /** Called when the canvas CSS size changes — spreads dots and bubbles across the tank. */
 function resetParticlesAndBubbles(buf: FloatBuffers, w: number, h: number) {
-  buf.pCount = Math.min(MAX_PARTICLES, Math.max(12, ((w * h) / 26000) | 0));
+  buf.pCount = Math.min(MAX_PARTICLES, Math.max(8, ((w * h) / 32000) | 0));
   for (let i = 0; i < buf.pCount; i++) {
     buf.px[i] = Math.random() * w;
     buf.py[i] = Math.random() * h * 0.94;
@@ -523,7 +531,7 @@ function resetParticlesAndBubbles(buf: FloatBuffers, w: number, h: number) {
     buf.pop[i] = 0.07 + Math.random() * 0.14;
   }
 
-  buf.bCount = Math.min(MAX_BUBBLES, Math.max(8, (w / 92) | 0));
+  buf.bCount = Math.min(MAX_BUBBLES, Math.max(6, (w / 110) | 0));
   for (let i = 0; i < buf.bCount; i++) {
     buf.bx[i] = Math.random() * w;
     buf.by[i] = h * 0.35 + Math.random() * h * 0.65;
@@ -751,6 +759,11 @@ type AquariumPaintCache = {
   dayRayVerticalGrad: CanvasGradient | null;
   /** Night only: fixed-shape biolum gradients; pulse uses `globalAlpha`. */
   nightBioGrads: CanvasGradient[] | null;
+  /** Shared overlays reused each frame; intensity is applied with `globalAlpha`. */
+  openingLightGrad: CanvasGradient;
+  vignetteGrad: CanvasGradient;
+  wakeVeilDayGrad: CanvasGradient;
+  wakeVeilNightGrad: CanvasGradient;
 };
 
 function ensureAquariumPaintCache(
@@ -838,6 +851,31 @@ function ensureAquariumPaintCache(
     }
   }
 
+  const openingLightGrad = ctx.createLinearGradient(0, 0, 0, h);
+  if (ambience === "day") {
+    openingLightGrad.addColorStop(0, "rgba(255, 255, 255, 0.24)");
+    openingLightGrad.addColorStop(0.34, "rgba(225, 246, 255, 0.08)");
+    openingLightGrad.addColorStop(1, "rgba(200, 230, 255, 0)");
+  } else {
+    openingLightGrad.addColorStop(0, "rgba(158, 214, 255, 0.2)");
+    openingLightGrad.addColorStop(0.36, "rgba(58, 128, 180, 0.07)");
+    openingLightGrad.addColorStop(1, "rgba(20, 38, 70, 0)");
+  }
+
+  const vignetteGrad = ctx.createLinearGradient(0, 0, 0, h);
+  vignetteGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+  vignetteGrad.addColorStop(0.62, "rgba(0, 0, 0, 0.05)");
+  vignetteGrad.addColorStop(1, ambience === "day" ? "rgba(5, 20, 30, 0.2)" : "rgba(0, 0, 0, 0.3)");
+
+  const wakeVeilDayGrad = ctx.createLinearGradient(0, 0, 0, h);
+  wakeVeilDayGrad.addColorStop(0, "rgba(241, 249, 255, 0.92)");
+  wakeVeilDayGrad.addColorStop(0.56, "rgba(212, 235, 247, 0.72)");
+  wakeVeilDayGrad.addColorStop(1, "rgba(170, 210, 225, 0.86)");
+  const wakeVeilNightGrad = ctx.createLinearGradient(0, 0, 0, h);
+  wakeVeilNightGrad.addColorStop(0, "rgba(8, 14, 24, 0.95)");
+  wakeVeilNightGrad.addColorStop(0.56, "rgba(5, 10, 18, 0.82)");
+  wakeVeilNightGrad.addColorStop(1, "rgba(2, 6, 12, 0.92)");
+
   const next: AquariumPaintCache = {
     cssW: w,
     cssH: h,
@@ -847,10 +885,22 @@ function ensureAquariumPaintCache(
     nightSurfaceGrad,
     dayRayVerticalGrad,
     nightBioGrads,
+    openingLightGrad,
+    vignetteGrad,
+    wakeVeilDayGrad,
+    wakeVeilNightGrad,
   };
   sim.paint = next;
   return next;
 }
+
+/** Unit beam reused for every daylight ray. */
+const DAY_RAY_PATH = new Path2D();
+DAY_RAY_PATH.moveTo(-0.5, 0);
+DAY_RAY_PATH.lineTo(0.5, 0);
+DAY_RAY_PATH.lineTo(1.65, 0.88);
+DAY_RAY_PATH.lineTo(-1.65, 0.88);
+DAY_RAY_PATH.closePath();
 
 /** Soft god-rays from the surface — low contrast, few beams. */
 function drawDayLightRays(
@@ -876,13 +926,8 @@ function drawDayLightRays(
     ctx.globalAlpha = breath;
     ctx.fillStyle = verticalRayGradient;
 
-    ctx.beginPath();
-    ctx.moveTo(-beamNarrow * 0.5, 0);
-    ctx.lineTo(beamNarrow * 0.5, 0);
-    ctx.lineTo(beamNarrow * 1.65, height * 0.88);
-    ctx.lineTo(-beamNarrow * 1.65, height * 0.88);
-    ctx.closePath();
-    ctx.fill();
+    ctx.scale(beamNarrow, height);
+    ctx.fill(DAY_RAY_PATH);
     ctx.restore();
   }
   ctx.restore();
@@ -924,43 +969,14 @@ function drawUnderwaterBackground(
   ctx.fillStyle = cache.glowGrad;
   ctx.fillRect(0, 0, width, height);
 
-  // Early frames get a stronger top-light + edge vignette so the first impression reads as deliberate.
+  // Early frames get stronger overlays so first paint feels intentional.
   ctx.save();
   const openingBoost = 1.1 - openingPrimaryT * 0.35;
-  const light = ctx.createRadialGradient(
-    width * 0.5,
-    height * 0.08,
-    width * 0.02,
-    width * 0.5,
-    height * 0.08,
-    width * 0.78,
-  );
-  if (ambience === "day") {
-    light.addColorStop(0, "rgba(255, 255, 255, 0.26)");
-    light.addColorStop(0.5, "rgba(225, 246, 255, 0.1)");
-    light.addColorStop(1, "rgba(200, 230, 255, 0)");
-  } else {
-    light.addColorStop(0, "rgba(158, 214, 255, 0.22)");
-    light.addColorStop(0.56, "rgba(58, 128, 180, 0.08)");
-    light.addColorStop(1, "rgba(20, 38, 70, 0)");
-  }
   ctx.globalAlpha = openingBoost;
-  ctx.fillStyle = light;
+  ctx.fillStyle = cache.openingLightGrad;
   ctx.fillRect(0, 0, width, height);
-
-  const vignette = ctx.createRadialGradient(
-    width * 0.5,
-    height * 0.46,
-    Math.min(width, height) * 0.14,
-    width * 0.5,
-    height * 0.5,
-    Math.max(width, height) * 0.86,
-  );
-  vignette.addColorStop(0, "rgba(0, 0, 0, 0)");
-  vignette.addColorStop(0.72, "rgba(0, 0, 0, 0.07)");
-  vignette.addColorStop(1, ambience === "day" ? "rgba(5, 20, 30, 0.2)" : "rgba(0, 0, 0, 0.3)");
   ctx.globalAlpha = 0.9;
-  ctx.fillStyle = vignette;
+  ctx.fillStyle = cache.vignetteGrad;
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 
@@ -1182,7 +1198,7 @@ function drawAquariumPoetry(
 
   ctx.font = `600 ${titleSize}px ${fontFamily}`;
   ctx.shadowColor = glow;
-  ctx.shadowBlur = night ? 28 : 18;
+  ctx.shadowBlur = 0;
   ctx.lineWidth = Math.max(1.2, titleSize * 0.03);
   ctx.strokeStyle = night ? "rgba(5, 10, 20, 0.45)" : "rgba(255, 255, 255, 0.56)";
   ctx.strokeText(title, cx, y);
@@ -1191,7 +1207,7 @@ function drawAquariumPoetry(
 
   y += titleSize * 1.05;
   ctx.globalAlpha *= detailsAlpha;
-  ctx.shadowBlur = night ? 14 : 10;
+  ctx.shadowBlur = 0;
   ctx.font = `400 ${lineSize}px ${fontFamily}`;
   ctx.fillStyle = lineFill;
   for (const line of AQUARIUM_POEM_TAGLINES) {
@@ -1590,18 +1606,16 @@ function AquariumCanvasComponent({
         ctx.save();
         // A soft startup veil prevents the first paint from feeling abrupt.
         const veilAlpha = 1 - wakeVeilT;
-        const veilGrad = ctx.createLinearGradient(0, 0, 0, cssH);
-        if (ambienceNow === "day") {
-          veilGrad.addColorStop(0, "rgba(241, 249, 255, 0.92)");
-          veilGrad.addColorStop(0.56, "rgba(212, 235, 247, 0.72)");
-          veilGrad.addColorStop(1, "rgba(170, 210, 225, 0.86)");
-        } else {
-          veilGrad.addColorStop(0, "rgba(8, 14, 24, 0.95)");
-          veilGrad.addColorStop(0.56, "rgba(5, 10, 18, 0.82)");
-          veilGrad.addColorStop(1, "rgba(2, 6, 12, 0.92)");
-        }
+        const cache = ensureAquariumPaintCache(
+          ctx,
+          cssW,
+          cssH,
+          ambienceNow,
+          sim,
+        );
         ctx.globalAlpha = veilAlpha;
-        ctx.fillStyle = veilGrad;
+        ctx.fillStyle =
+          ambienceNow === "day" ? cache.wakeVeilDayGrad : cache.wakeVeilNightGrad;
         ctx.fillRect(0, 0, cssW, cssH);
         ctx.restore();
       }
