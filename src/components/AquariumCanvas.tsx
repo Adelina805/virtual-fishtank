@@ -36,8 +36,30 @@ function updatePointerCanvasState(
     clientY < rect.bottom;
 }
 
-/** Cap backing-store resolution so 3×/2.5× phones are not asked to shade ~9× the pixels of 1×. */
+/**
+ * Effective backing-store scale: `min(deviceDPR, MAX_CANVAS_DPR)`, then lowered if the
+ * canvas would exceed `MAX_BACKING_PIXELS` (large fullscreen layouts).
+ *
+ * Tradeoff: higher DPR = sharper edges and thinner strokes on retina; lower DPR = fewer
+ * pixels per frame (fill rate / memory). Capping avoids paying ~9× fill for 3× phones and
+ * avoids multi‑million‑pixel buffers on big desktop windows where 2× is rarely visible.
+ */
 const MAX_CANVAS_DPR = 2;
+/** ~1920×1080 at 2× — keeps fill rate bounded on ultrawide / 4K CSS layouts. */
+const MAX_BACKING_PIXELS = 8_294_400;
+
+function effectiveCanvasDpr(
+  cssW: number,
+  cssH: number,
+  deviceDpr: number,
+): number {
+  const w = Math.max(1, cssW);
+  const h = Math.max(1, cssH);
+  let dpr = Math.min(MAX_CANVAS_DPR, Math.max(1, deviceDpr || 1));
+  const maxDprByPixels = Math.sqrt(MAX_BACKING_PIXELS / (w * h));
+  dpr = Math.min(dpr, maxDprByPixels);
+  return Math.max(1, dpr);
+}
 
 /** Hard caps keep phones cool; count scales down with smaller canvases. */
 const MAX_PARTICLES = 56;
@@ -1115,6 +1137,8 @@ type AquariumCanvasSimulation = {
   };
   lastCssW: number;
   lastCssH: number;
+  lastBackingW: number;
+  lastBackingH: number;
   lastNow: number;
   lastAppliedFishCount: number;
   /** Cleared when the backing store is resized so gradients stay valid for the context. */
@@ -1129,6 +1153,8 @@ function createAquariumSimulation(): AquariumCanvasSimulation {
     pointerSpawn: { lastT: 0, lastX: 0, lastY: 0, initialized: false },
     lastCssW: -1,
     lastCssH: -1,
+    lastBackingW: -1,
+    lastBackingH: -1,
     lastNow: 0,
     lastAppliedFishCount: 0,
     paint: null,
@@ -1282,12 +1308,11 @@ function AquariumCanvasComponent({
 
     const tick = (now: number) => {
       const timeSec = now * 0.001;
-      const dpr = Math.min(
-        MAX_CANVAS_DPR,
-        Math.max(1, window.devicePixelRatio || 1),
-      );
       const cssW = Math.max(1, Math.round(canvas.clientWidth));
       const cssH = Math.max(1, Math.round(canvas.clientHeight));
+      const dpr = effectiveCanvasDpr(cssW, cssH, window.devicePixelRatio || 1);
+      const backingW = Math.max(1, Math.round(cssW * dpr));
+      const backingH = Math.max(1, Math.round(cssH * dpr));
 
       if (sim.lastNow === 0) sim.lastNow = now;
       const dt = Math.min(0.05, Math.max(0, (now - sim.lastNow) / 1000));
@@ -1297,12 +1322,17 @@ function AquariumCanvasComponent({
       const n = clampFishCount(rs.fishCount);
       const ambienceNow = rs.ambience;
 
+      if (backingW !== sim.lastBackingW || backingH !== sim.lastBackingH) {
+        canvas.width = backingW;
+        canvas.height = backingH;
+        sim.lastBackingW = backingW;
+        sim.lastBackingH = backingH;
+        sim.paint = null;
+      }
+
       if (cssW !== sim.lastCssW || cssH !== sim.lastCssH) {
-        canvas.width = Math.round(cssW * dpr);
-        canvas.height = Math.round(cssH * dpr);
         sim.lastCssW = cssW;
         sim.lastCssH = cssH;
-        sim.paint = null;
         resetParticlesAndBubbles(buf, cssW, cssH);
         clearPointerBubbles(pointerBubbles);
         resetFish(fish, cssW, cssH, n);
