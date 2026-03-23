@@ -75,10 +75,19 @@ export const MAX_FISH_COUNT = 100;
 const FISH_DEPTH_BACK = 0;
 const FISH_DEPTH_MID = 1;
 const FISH_DEPTH_FRONT = 2;
-/** Keep first paint lighter; full scene appears quickly after mount. */
+/** Stage reveal timing keeps first paint calm and premium. */
 const OPENING_PRIMARY_MS = 1000;
-const SECONDARY_FADE_DELAY_MS = 120;
-const SECONDARY_FADE_IN_MS = 820;
+const DETAILS_REVEAL_DELAY_MS = 180;
+const PARTICLES_REVEAL_MS = 1200;
+const MIDGROUND_REVEAL_DELAY_MS = 220;
+const MIDGROUND_REVEAL_MS = 1250;
+const FOREGROUND_REVEAL_DELAY_MS = 320;
+const FOREGROUND_REVEAL_MS = 1300;
+const BUBBLES_REVEAL_DELAY_MS = 460;
+const BUBBLES_REVEAL_MS = 1200;
+const POETRY_REVEAL_MS = 1050;
+const WAKE_VEIL_DELAY_MS = 80;
+const WAKE_VEIL_MS = 1500;
 
 /** Simple fish: horizontal drift; vertical bob applied when drawing. */
 type FishSchool = {
@@ -1501,8 +1510,23 @@ function AquariumCanvasComponent({
 
       const openingElapsedMs = Math.max(0, now - effectStartMs);
       const openingPrimaryT = easeOutCubic(openingElapsedMs / OPENING_PRIMARY_MS);
-      const secondaryT = easeOutCubic(
-        (openingElapsedMs - SECONDARY_FADE_DELAY_MS) / SECONDARY_FADE_IN_MS,
+      const particlesT = easeOutCubic(
+        (openingElapsedMs - DETAILS_REVEAL_DELAY_MS) / PARTICLES_REVEAL_MS,
+      );
+      const midgroundT = easeOutCubic(
+        (openingElapsedMs - MIDGROUND_REVEAL_DELAY_MS) / MIDGROUND_REVEAL_MS,
+      );
+      const foregroundT = easeOutCubic(
+        (openingElapsedMs - FOREGROUND_REVEAL_DELAY_MS) / FOREGROUND_REVEAL_MS,
+      );
+      const bubblesT = easeOutCubic(
+        (openingElapsedMs - BUBBLES_REVEAL_DELAY_MS) / BUBBLES_REVEAL_MS,
+      );
+      const poetryT = easeOutCubic(
+        (openingElapsedMs - DETAILS_REVEAL_DELAY_MS) / POETRY_REVEAL_MS,
+      );
+      const wakeVeilT = easeOutCubic(
+        (openingElapsedMs - WAKE_VEIL_DELAY_MS) / WAKE_VEIL_MS,
       );
       const heroFishCount = Math.min(4, n);
       const fishVisibleCount = openingElapsedMs < OPENING_PRIMARY_MS ? heroFishCount : n;
@@ -1517,7 +1541,7 @@ function AquariumCanvasComponent({
         openingPrimaryT,
       );
       ctx.save();
-      ctx.globalAlpha = 0.22 + secondaryT * 0.78;
+      ctx.globalAlpha = 0.08 + particlesT * 0.72;
       drawDistantReef(ctx, cssW, cssH);
       drawDriftParticles(ctx, buf, ambienceNow);
       ctx.restore();
@@ -1529,29 +1553,48 @@ function AquariumCanvasComponent({
           cssH,
           ambienceNow,
           fam ?? "ui-serif, Georgia, serif",
-          secondaryT,
+          poetryT,
         );
       }
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_BACK, fishVisibleCount, cssW);
-      if (secondaryT > 0.01) {
+      if (midgroundT > 0.01) {
         ctx.save();
-        ctx.globalAlpha = secondaryT;
+        ctx.globalAlpha = midgroundT;
         drawMidgroundRocksAndPlants(ctx, cssW, cssH, timeSec);
         ctx.restore();
       }
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_MID, fishVisibleCount, cssW);
-      if (secondaryT > 0.01) {
+      if (foregroundT > 0.01) {
         ctx.save();
-        ctx.globalAlpha = secondaryT;
+        ctx.globalAlpha = foregroundT;
         drawForegroundSeaweed(ctx, cssW, cssH, timeSec);
         ctx.restore();
       }
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_FRONT, fishVisibleCount, cssW);
-      if (secondaryT > 0.01) {
+      if (bubblesT > 0.01) {
         ctx.save();
-        ctx.globalAlpha = secondaryT;
+        ctx.globalAlpha = bubblesT;
         drawBubbles(ctx, buf, timeSec, cssW, cssH);
         drawPointerBubbles(ctx, pointerBubbles, timeSec, cssW, cssH);
+        ctx.restore();
+      }
+      if (wakeVeilT < 0.999) {
+        ctx.save();
+        // A soft startup veil prevents the first paint from feeling abrupt.
+        const veilAlpha = 1 - wakeVeilT;
+        const veilGrad = ctx.createLinearGradient(0, 0, 0, cssH);
+        if (ambienceNow === "day") {
+          veilGrad.addColorStop(0, "rgba(241, 249, 255, 0.92)");
+          veilGrad.addColorStop(0.56, "rgba(212, 235, 247, 0.72)");
+          veilGrad.addColorStop(1, "rgba(170, 210, 225, 0.86)");
+        } else {
+          veilGrad.addColorStop(0, "rgba(8, 14, 24, 0.95)");
+          veilGrad.addColorStop(0.56, "rgba(5, 10, 18, 0.82)");
+          veilGrad.addColorStop(1, "rgba(2, 6, 12, 0.92)");
+        }
+        ctx.globalAlpha = veilAlpha;
+        ctx.fillStyle = veilGrad;
+        ctx.fillRect(0, 0, cssW, cssH);
         ctx.restore();
       }
 
