@@ -106,6 +106,10 @@ type FishSchool = {
   depth: Uint8Array;
   /** Index into `FISH_PALETTES` — dorsal / mid / belly / fin for each fish. */
   paletteId: Uint8Array;
+  /** Countdown to a possible random direction switch (seconds). */
+  turnTimer: Float32Array;
+  /** Prevent rapid flip-flopping when the pointer stays in front. */
+  turnCooldown: Float32Array;
 };
 
 /** Tropical reef-inspired gradients (dorsal → mid → belly + tail accent). */
@@ -137,7 +141,13 @@ function createFishSchool(capacity: number): FishSchool {
     speedBoost: new Float32Array(capacity),
     depth: new Uint8Array(capacity),
     paletteId: new Uint8Array(capacity),
+    turnTimer: new Float32Array(capacity),
+    turnCooldown: new Float32Array(capacity),
   };
+}
+
+function nextRandomTurnTimerSec() {
+  return 2.8 + Math.random() * 3.4;
 }
 
 /** Hoisted: avoid allocating each `stepFish` call (once per frame). */
@@ -209,6 +219,8 @@ function initFishIndex(fish: FishSchool, i: number, w: number, h: number) {
   fish.speedBoost[i] = 0;
   fish.depth[i] = FISH_DEPTH_CYCLE[i % FISH_DEPTH_CYCLE.length]!;
   fish.paletteId[i] = (Math.random() * nPalettes) | 0;
+  fish.turnTimer[i] = nextRandomTurnTimerSec();
+  fish.turnCooldown[i] = 0;
 
   const sizeT = Math.random();
   fish.size[i] = 0.72 + sizeT * 0.78;
@@ -242,6 +254,8 @@ function resetFish(fish: FishSchool, w: number, h: number, count: number) {
     fish.vxOff[i] = 0;
     fish.vyOff[i] = 0;
     fish.speedBoost[i] = 0;
+    fish.turnTimer[i] = nextRandomTurnTimerSec();
+    fish.turnCooldown[i] = 0;
   }
 }
 
@@ -261,11 +275,13 @@ function stepFish(
   const personal = 56;
   const maxSteer = 46;
   const follow = 0.78;
-  const flee = 1.1;
-  const maxSpeedBoost = 0.36;
-  const boostOnFlip = 0.22;
-  const pointerBoostPerSec = 1.6;
-  const boostDecayPerSec = 1.65;
+  const maxSpeedBoost = 0.55;
+  const behindBoostPerSec = 2.1;
+  const boostOnFrontTurn = 0.28;
+  const boostDecayPerSec = 1.75;
+  const randomTurnChance = 0.34;
+  const turnCooldownSec = 0.34;
+  const directFleeRadius = 34;
 
   // Same for every fish this frame — hoisted out of the loop.
   const followRate = Math.min(1, 6 * dt);
@@ -291,20 +307,31 @@ function stepFish(
       // Match old logic: react only when 0.75 < dist < influenceR (use squares to skip sqrt).
       if (distSq > 0.5625 && distSq < influenceRSq) {
         const dist = Math.sqrt(distSq);
-        // In the close zone, flee pushes opposite the base swim when the pointer is *ahead*
-        // of the fish (same side as the mouth).
-        //
-        // For a calmer feel, avoid a sharp reversal. Instead, damp horizontal motion and
-        // let steering do the visible part of the reaction.
-        if (dist < personal) {
-          const pointerAhead = fish.dir[i]! * dx > 2;
-          if (pointerAhead) {
-            fish.vxOff[i] = 0;
+        const frontTurnRadius = Math.max(personal * 1.75, fish.size[i] * 46);
+        const behindBoostRadius = Math.max(personal * 0.9, fish.size[i] * 30);
+        const pointerAhead = fish.dir[i] * dx > 0;
+        const directOnTop = dist < directFleeRadius;
+        if (directOnTop) {
+          // Cursor directly over fish: always flee from the pointer.
+          fish.speedBoost[i] = Math.min(
+            maxSpeedBoost,
+            fish.speedBoost[i] + behindBoostPerSec * 1.25 * dt,
+          );
+        }
+        if (pointerAhead && dist < frontTurnRadius) {
+          if (fish.turnCooldown[i] <= 0) {
+            fish.dir[i] *= -1;
+            fish.turnCooldown[i] = turnCooldownSec;
             fish.speedBoost[i] = Math.min(
               maxSpeedBoost,
-              fish.speedBoost[i] + boostOnFlip * 0.35,
+              fish.speedBoost[i] + boostOnFrontTurn,
             );
           }
+        } else if (!pointerAhead && dist < behindBoostRadius) {
+          fish.speedBoost[i] = Math.min(
+            maxSpeedBoost,
+            fish.speedBoost[i] + behindBoostPerSec * dt,
+          );
         }
 
         const nx = dx / dist;
@@ -314,19 +341,31 @@ function stepFish(
         const falloff = Math.pow(edge, 1.2);
         const dFac = FISH_DEPTH_REACT[fish.depth[i]!] ?? 1;
         let along: number;
-        if (dist < personal) {
-          const t = 1 - dist / personal;
-          along = -flee * (t * t);
+        if (directOnTop) {
+          along = -1.3;
+        } else if (dist < behindBoostRadius) {
+          if (pointerAhead) {
+            along = -0.7;
+          } else {
+            along = follow * 0.42;
+          }
         } else {
           along = follow * (1 - (dist - personal) / influenceSpan);
         }
         const mag = Math.min(maxSteer, 52 * falloff * along * dFac);
         targetVx = nx * mag;
         targetVy = ny * mag;
-        fish.speedBoost[i] = Math.min(
-          maxSpeedBoost,
-          fish.speedBoost[i] + pointerBoostPerSec * dt,
-        );
+      }
+    }
+
+    fish.turnCooldown[i] = Math.max(0, fish.turnCooldown[i] - dt);
+    fish.turnTimer[i] -= dt;
+    if (fish.turnTimer[i] <= 0) {
+      fish.turnTimer[i] = nextRandomTurnTimerSec();
+      if (Math.random() < randomTurnChance && fish.turnCooldown[i] <= 0) {
+        fish.dir[i] *= -1;
+        fish.turnCooldown[i] = turnCooldownSec;
+        fish.speedBoost[i] = Math.min(maxSpeedBoost, fish.speedBoost[i] + 0.14);
       }
     }
 

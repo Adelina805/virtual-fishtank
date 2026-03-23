@@ -15,17 +15,8 @@ const poemFont = Dancing_Script({
 });
 
 export default function HomeAquariumExperience() {
-  const [isNight, setIsNight] = useState(() => {
-    if (typeof window === "undefined") return true;
-    const stored =
-      window.localStorage.getItem("vf-ambience") ??
-      window.localStorage.getItem("theme");
-
-    if (stored === "day" || stored === "light") return false;
-    if (stored === "night" || stored === "dark") return true;
-
-    return window.matchMedia("(prefers-color-scheme: dark)").matches;
-  });
+  // Keep initial SSR/CSR markup identical; hydrate preference after mount.
+  const [isNight, setIsNight] = useState(true);
   const [fishCount, setFishCount] = useState(DEFAULT_FISH_COUNT);
   const [sceneVisible, setSceneVisible] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
@@ -36,6 +27,21 @@ export default function HomeAquariumExperience() {
   });
   runtimeSettingsRef.current.ambience = isNight ? "night" : "day";
   runtimeSettingsRef.current.fishCount = fishCount;
+
+  useEffect(() => {
+    const stored =
+      window.localStorage.getItem("vf-ambience") ??
+      window.localStorage.getItem("theme");
+    if (stored === "day" || stored === "light") {
+      setIsNight(false);
+      return;
+    }
+    if (stored === "night" || stored === "dark") {
+      setIsNight(true);
+      return;
+    }
+    setIsNight(window.matchMedia("(prefers-color-scheme: dark)").matches);
+  }, []);
 
   useEffect(() => {
     const value = isNight ? "night" : "day";
