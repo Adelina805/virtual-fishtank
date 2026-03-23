@@ -1243,8 +1243,13 @@ function drawAquariumPoetry(
 ) {
   const cx = w * 0.5;
   const title = "Virtual Fishtank";
-  const titleSize = Math.max(26, Math.min(56, w * 0.09));
-  const lineSize = Math.max(15, Math.min(26, w * 0.042));
+  const isMobile = w < 640;
+  const titleSize = isMobile
+    ? Math.max(32, Math.min(60, w * 0.105))
+    : Math.max(26, Math.min(56, w * 0.09));
+  const lineSize = isMobile
+    ? Math.max(18, Math.min(30, w * 0.05))
+    : Math.max(15, Math.min(26, w * 0.042));
   const lineHeight = lineSize * 1.42;
   const blockHalfHeight =
     (titleSize * 1.1 + AQUARIUM_POEM_TAGLINES.length * lineHeight) * 0.5;
@@ -1478,15 +1483,15 @@ function AquariumCanvasComponent({
       // `performance.now()` is milliseconds; the original thresholds were in seconds.
       // This bug causes very frequent bubble spawns. Fixing it makes the motion calmer
       // and reduces per-frame canvas work.
-      if (elapsedMs < 55) return;
-      if (dist < 4 && elapsedMs < 380) return;
+      if (elapsedMs < 34) return;
+      if (dist < 3 && elapsedMs < 260) return;
       const elapsedS = elapsedMs * 0.001;
       const speedPxPerSec = dist / Math.max(1e-3, elapsedS);
       pointerSpawn.lastT = now;
       pointerSpawn.lastX = p.x;
       pointerSpawn.lastY = p.y;
       spawnPointerBubble(pointerBubbles, p.x, p.y, w, h);
-      if (dist > 22 && speedPxPerSec > 250 && Math.random() < 0.18) {
+      if (dist > 14 && speedPxPerSec > 180 && Math.random() < 0.34) {
         spawnPointerBubble(pointerBubbles, p.x, p.y, w, h);
       }
     };
