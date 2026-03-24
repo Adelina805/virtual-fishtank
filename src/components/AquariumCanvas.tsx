@@ -6,6 +6,12 @@ import {
   useRef,
   type MutableRefObject,
 } from "react";
+import {
+  DEFAULT_FISH_COUNT,
+  MAX_FISH_COUNT,
+  type AquariumAmbience,
+  type AquariumRuntimeSettings,
+} from "@/src/lib/aquarium-runtime";
 
 /** Latest pointer position in canvas CSS pixels (same space as drawing after DPR scale). */
 export type PointerCanvasState = {
@@ -66,10 +72,6 @@ const MAX_PARTICLES = 40;
 const MAX_BUBBLES = 18;
 /** Cursor / touch trail bubbles — small pool, same look as background bubbles. */
 const MAX_POINTER_BUBBLES = 32;
-/** Default school size (user can add fish up to `MAX_FISH_COUNT`). */
-export const DEFAULT_FISH_COUNT = 10;
-/** Upper bound for extra fish — keeps mobile GPUs happier. */
-export const MAX_FISH_COUNT = 100;
 
 /** 0 = behind midground, 1 = between midground & seaweed, 2 = in front of seaweed (near glass). */
 const FISH_DEPTH_BACK = 0;
@@ -805,8 +807,6 @@ function drawPointerBubbles(
   ctx.restore();
 }
 
-export type AquariumAmbience = "day" | "night";
-
 /**
  * Gradients tied to CSS size + day/night — rebuilt only on resize or ambience change.
  * (Resetting `canvas.width` clears the 2D state, so this cache is cleared there too.)
@@ -1294,16 +1294,6 @@ function drawAquariumPoetry(
   ctx.restore();
 }
 
-/**
- * Mutable settings read every animation frame — keep them in a ref so the canvas can stay memoized
- * while React state updates only the control panel.
- */
-export type AquariumRuntimeSettings = {
-  ambience: AquariumAmbience;
-  /** Clamped each frame to DEFAULT…MAX. */
-  fishCount: number;
-};
-
 type AquariumCanvasProps = {
   /** Optional ref to read the latest pointer position in canvas coordinates (no re-renders). */
   pointerCanvasRef?: MutableRefObject<PointerCanvasState>;
@@ -1446,23 +1436,6 @@ function AquariumCanvasComponent({
     const effectStartMs = performance.now();
     let rafId = 0;
 
-    // Temporary instrumentation: helps confirm whether the first-seconds lag correlates
-    // with canvas size churn triggering particle/fish resets and paint cache rebuilds.
-    const debug = {
-      startMs: performance.now(),
-      logged: false,
-      lastObservedCssW: -1,
-      lastObservedCssH: -1,
-      cssRoundingChanges: 0,
-      backingResizes: 0,
-      paintCacheInvalidations: 0,
-      particleResets: 0,
-      fishResets: 0,
-    };
-    (window as any).__aquariumCanvasDebug = debug;
-    // eslint-disable-next-line no-console
-    console.log("[AquariumCanvas debug] effect mounted");
-
     const trySpawnPointerTrail = () => {
       const p = pointerCanvasRef.current;
       if (!p.inCanvas) return;
@@ -1553,13 +1526,6 @@ function AquariumCanvasComponent({
       const n = clampFishCount(rs.fishCount);
       const ambienceNow = rs.ambience;
 
-      // Count when the rounded CSS size changes (even if it doesn't trigger a reset).
-      if (cssW !== debug.lastObservedCssW || cssH !== debug.lastObservedCssH) {
-        debug.cssRoundingChanges++;
-        debug.lastObservedCssW = cssW;
-        debug.lastObservedCssH = cssH;
-      }
-
       const backingWDelta = Math.abs(backingW - sim.lastBackingW);
       const backingHDelta = Math.abs(backingH - sim.lastBackingH);
       const shouldUpdateBacking =
@@ -1572,8 +1538,6 @@ function AquariumCanvasComponent({
         sim.lastBackingW = backingW;
         sim.lastBackingH = backingH;
         sim.paint = null;
-        debug.backingResizes++;
-        debug.paintCacheInvalidations++;
       }
 
       const cssWDelta = Math.abs(cssW - sim.lastCssW);
@@ -1589,8 +1553,6 @@ function AquariumCanvasComponent({
         clearPointerBubbles(pointerBubbles);
         resetFish(fish, cssW, cssH, n);
         sim.lastAppliedFishCount = n;
-        debug.particleResets++;
-        debug.fishResets++;
       } else if (n !== sim.lastAppliedFishCount) {
         if (n > sim.lastAppliedFishCount) {
           for (let i = sim.lastAppliedFishCount; i < n; i++) {
@@ -1697,19 +1659,6 @@ function AquariumCanvasComponent({
       }
 
       rafId = requestAnimationFrame(tick);
-
-      // Log once per mount after ~3 seconds; you can correlate this with the lag window.
-      if (!debug.logged && now - debug.startMs >= 3000) {
-        debug.logged = true;
-        // eslint-disable-next-line no-console
-        console.log("[AquariumCanvas debug]", {
-          cssRoundingChanges: debug.cssRoundingChanges,
-          backingResizes: debug.backingResizes,
-          paintCacheInvalidations: debug.paintCacheInvalidations,
-          particleResets: debug.particleResets,
-          fishResets: debug.fishResets,
-        });
-      }
     };
 
     rafId = requestAnimationFrame(tick);

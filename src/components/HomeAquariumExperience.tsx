@@ -1,13 +1,19 @@
 "use client";
 
 import { Dancing_Script } from "next/font/google";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import AquariumCanvas, {
+import FloatingControlPanel from "@/src/components/FloatingControlPanel";
+import {
   DEFAULT_FISH_COUNT,
   MAX_FISH_COUNT,
   type AquariumRuntimeSettings,
-} from "@/src/components/AquariumCanvas";
-import FloatingControlPanel from "@/src/components/FloatingControlPanel";
+} from "@/src/lib/aquarium-runtime";
+
+const AquariumCanvas = dynamic(
+  () => import("@/src/components/AquariumCanvas"),
+  { ssr: false, loading: () => null },
+);
 
 const poemFont = Dancing_Script({
   subsets: ["latin"],
