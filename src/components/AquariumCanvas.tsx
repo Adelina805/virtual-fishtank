@@ -92,6 +92,11 @@ const BUBBLES_REVEAL_MS = 1200;
 const POETRY_REVEAL_MS = 1050;
 const WAKE_VEIL_DELAY_MS = 80;
 const WAKE_VEIL_MS = 1500;
+/** After opening finishes, reef plants / seaweed rasters refresh at most this often (~29fps). */
+const SCENERY_THROTTLE_MS = 34;
+/** While opening animations run, scenery layers redraw every frame so fades stay smooth. */
+const OPENING_FULL_SCENERY_MS =
+  FOREGROUND_REVEAL_DELAY_MS + FOREGROUND_REVEAL_MS + 80;
 
 /** Simple fish: horizontal drift; vertical bob applied when drawing. */
 type FishSchool = {
@@ -838,6 +843,19 @@ type PoetryRasterCache = {
   fontKey: string;
 };
 
+/** Distant ridge — no time dependency; bitmap invalidated on resize / DPR. */
+type SceneryStaticRasterCache = {
+  canvas: HTMLCanvasElement;
+  cssW: number;
+  cssH: number;
+  dpr: number;
+};
+
+/** Swaying plants — redrawn at full rate during opening, then throttled. */
+type SceneryThrottledRasterCache = SceneryStaticRasterCache & {
+  lastRedrawMs: number;
+};
+
 function poetryRasterNeedsRebuild(
   c: PoetryRasterCache | null,
   cssW: number,
@@ -1308,6 +1326,143 @@ function drawForegroundSeaweed(
   ctx.fill();
 }
 
+function staticSceneryNeedsRebuild(
+  c: SceneryStaticRasterCache | null,
+  cssW: number,
+  cssH: number,
+  dpr: number,
+) {
+  if (!c) return true;
+  return c.cssW !== cssW || c.cssH !== cssH || c.dpr !== dpr;
+}
+
+function ensureReefRaster(
+  holder: { reefRaster: SceneryStaticRasterCache | null },
+  cssW: number,
+  cssH: number,
+  dpr: number,
+): HTMLCanvasElement | null {
+  if (!staticSceneryNeedsRebuild(holder.reefRaster, cssW, cssH, dpr)) {
+    return holder.reefRaster!.canvas;
+  }
+  const prev = holder.reefRaster;
+  const canvasEl = prev?.canvas ?? document.createElement("canvas");
+  const bw = Math.max(1, Math.round(cssW * dpr));
+  const bh = Math.max(1, Math.round(cssH * dpr));
+  canvasEl.width = bw;
+  canvasEl.height = bh;
+  const rctx = canvasEl.getContext("2d");
+  if (!rctx) return null;
+  rctx.setTransform(1, 0, 0, 1, 0, 0);
+  rctx.clearRect(0, 0, bw, bh);
+  rctx.scale(dpr, dpr);
+  drawDistantReef(rctx, cssW, cssH);
+  holder.reefRaster = { canvas: canvasEl, cssW, cssH, dpr };
+  return canvasEl;
+}
+
+function drawMidgroundRocksAndPlantsCached(
+  holder: { midgroundRaster: SceneryThrottledRasterCache | null },
+  target: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number,
+  dpr: number,
+  timeSec: number,
+  nowMs: number,
+  openingElapsedMs: number,
+) {
+  const fullRate = openingElapsedMs < OPENING_FULL_SCENERY_MS;
+  let c = holder.midgroundRaster;
+  const bufferMismatch =
+    !c || c.cssW !== cssW || c.cssH !== cssH || c.dpr !== dpr;
+  const shouldRedraw =
+    fullRate ||
+    bufferMismatch ||
+    !c ||
+    nowMs - c.lastRedrawMs >= SCENERY_THROTTLE_MS;
+
+  if (!shouldRedraw && c) {
+    target.drawImage(c.canvas, 0, 0, cssW, cssH);
+    return;
+  }
+
+  const canvasEl = c?.canvas ?? document.createElement("canvas");
+  const bw = Math.max(1, Math.round(cssW * dpr));
+  const bh = Math.max(1, Math.round(cssH * dpr));
+  if (bufferMismatch || !c) {
+    canvasEl.width = bw;
+    canvasEl.height = bh;
+  }
+  const mctx = canvasEl.getContext("2d");
+  if (!mctx) {
+    drawMidgroundRocksAndPlants(target, cssW, cssH, timeSec);
+    return;
+  }
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  mctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  mctx.scale(dpr, dpr);
+  drawMidgroundRocksAndPlants(mctx, cssW, cssH, timeSec);
+  holder.midgroundRaster = {
+    canvas: canvasEl,
+    cssW,
+    cssH,
+    dpr,
+    lastRedrawMs: nowMs,
+  };
+  target.drawImage(canvasEl, 0, 0, cssW, cssH);
+}
+
+function drawForegroundSeaweedCached(
+  holder: { foregroundSeaweedRaster: SceneryThrottledRasterCache | null },
+  target: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number,
+  dpr: number,
+  timeSec: number,
+  nowMs: number,
+  openingElapsedMs: number,
+) {
+  const fullRate = openingElapsedMs < OPENING_FULL_SCENERY_MS;
+  let c = holder.foregroundSeaweedRaster;
+  const bufferMismatch =
+    !c || c.cssW !== cssW || c.cssH !== cssH || c.dpr !== dpr;
+  const shouldRedraw =
+    fullRate ||
+    bufferMismatch ||
+    !c ||
+    nowMs - c.lastRedrawMs >= SCENERY_THROTTLE_MS;
+
+  if (!shouldRedraw && c) {
+    target.drawImage(c.canvas, 0, 0, cssW, cssH);
+    return;
+  }
+
+  const canvasEl = c?.canvas ?? document.createElement("canvas");
+  const bw = Math.max(1, Math.round(cssW * dpr));
+  const bh = Math.max(1, Math.round(cssH * dpr));
+  if (bufferMismatch || !c) {
+    canvasEl.width = bw;
+    canvasEl.height = bh;
+  }
+  const fctx = canvasEl.getContext("2d");
+  if (!fctx) {
+    drawForegroundSeaweed(target, cssW, cssH, timeSec);
+    return;
+  }
+  fctx.setTransform(1, 0, 0, 1, 0, 0);
+  fctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+  fctx.scale(dpr, dpr);
+  drawForegroundSeaweed(fctx, cssW, cssH, timeSec);
+  holder.foregroundSeaweedRaster = {
+    canvas: canvasEl,
+    cssW,
+    cssH,
+    dpr,
+    lastRedrawMs: nowMs,
+  };
+  target.drawImage(canvasEl, 0, 0, cssW, cssH);
+}
+
 function drawAquariumPoetry(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -1399,6 +1554,12 @@ type AquariumCanvasSimulation = {
   paint: AquariumPaintCache | null;
   /** Raster cache for poetry text after opening reveal; cleared on resize / ambience / font. */
   poetryRaster: PoetryRasterCache | null;
+  /** Static distant reef; cleared on resize / DPR. */
+  reefRaster: SceneryStaticRasterCache | null;
+  /** Midground rocks / fans; throttled after opening. */
+  midgroundRaster: SceneryThrottledRasterCache | null;
+  /** Foreground seaweed; throttled after opening. */
+  foregroundSeaweedRaster: SceneryThrottledRasterCache | null;
 };
 
 // In React dev, Strict Mode intentionally mounts/unmounts components to surface unsafe lifecycles.
@@ -1420,6 +1581,9 @@ function createAquariumSimulation(): AquariumCanvasSimulation {
     lastAppliedFishCount: 0,
     paint: null,
     poetryRaster: null,
+    reefRaster: null,
+    midgroundRaster: null,
+    foregroundSeaweedRaster: null,
   };
 }
 
@@ -1503,6 +1667,9 @@ function AquariumCanvasComponent({
     sim.lastNow = 0;
     sim.paint = null;
     sim.poetryRaster = null;
+    sim.reefRaster = null;
+    sim.midgroundRaster = null;
+    sim.foregroundSeaweedRaster = null;
 
     const { buf, fish, pointerBubbles, pointerSpawn } = sim;
     const effectStartMs = performance.now();
@@ -1627,6 +1794,9 @@ function AquariumCanvasComponent({
         sim.lastBackingH = backingH;
         sim.paint = null;
         sim.poetryRaster = null;
+        sim.reefRaster = null;
+        sim.midgroundRaster = null;
+        sim.foregroundSeaweedRaster = null;
       }
 
       const cssWDelta = Math.abs(cssW - sim.lastCssW);
@@ -1639,6 +1809,9 @@ function AquariumCanvasComponent({
         sim.lastCssW = cssW;
         sim.lastCssH = cssH;
         sim.poetryRaster = null;
+        sim.reefRaster = null;
+        sim.midgroundRaster = null;
+        sim.foregroundSeaweedRaster = null;
         resetParticlesAndBubbles(buf, cssW, cssH);
         clearPointerBubbles(pointerBubbles);
         resetFish(fish, cssW, cssH, n);
@@ -1694,7 +1867,12 @@ function AquariumCanvasComponent({
       );
       ctx.save();
       ctx.globalAlpha = 0.08 + particlesT * 0.72;
-      drawDistantReef(ctx, cssW, cssH);
+      const reefCanvas = ensureReefRaster(sim, cssW, cssH, dpr);
+      if (reefCanvas) {
+        ctx.drawImage(reefCanvas, 0, 0, cssW, cssH);
+      } else {
+        drawDistantReef(ctx, cssW, cssH);
+      }
       drawDriftParticles(ctx, buf, ambienceNow);
       ctx.restore();
       const fam = poemFontFamilyRef.current;
@@ -1714,14 +1892,32 @@ function AquariumCanvasComponent({
       if (midgroundT > 0.01) {
         ctx.save();
         ctx.globalAlpha = midgroundT;
-        drawMidgroundRocksAndPlants(ctx, cssW, cssH, timeSec);
+        drawMidgroundRocksAndPlantsCached(
+          sim,
+          ctx,
+          cssW,
+          cssH,
+          dpr,
+          timeSec,
+          now,
+          openingElapsedMs,
+        );
         ctx.restore();
       }
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_MID, fishVisibleCount, cssW);
       if (foregroundT > 0.01) {
         ctx.save();
         ctx.globalAlpha = foregroundT;
-        drawForegroundSeaweed(ctx, cssW, cssH, timeSec);
+        drawForegroundSeaweedCached(
+          sim,
+          ctx,
+          cssW,
+          cssH,
+          dpr,
+          timeSec,
+          now,
+          openingElapsedMs,
+        );
         ctx.restore();
       }
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_FRONT, fishVisibleCount, cssW);
