@@ -23,6 +23,31 @@ export type PointerCanvasState = {
   inCanvas: boolean;
 };
 
+type FoodPellet = {
+  id: number;
+  x: number;
+  y: number;
+  vy: number;
+  driftX: number;
+  radius: number;
+  active: boolean;
+  createdAt: number;
+  claimedBy: number;
+};
+
+const MAX_FOOD_PELLETS = 12;
+const FOOD_LIFETIME_MS = 5000;
+const FOOD_DETECTION_RADIUS = 120;
+const FOOD_EAT_RADIUS = 10;
+// Speeds are in CSS px/s (dt is seconds).
+const FOOD_FALL_SPEED_MIN = 34;
+const FOOD_FALL_SPEED_MAX = 62;
+const FOOD_DRIFT_RANGE = 12;
+
+function randBetween(min: number, max: number) {
+  return min + Math.random() * (max - min);
+}
+
 function updatePointerCanvasState(
   canvas: HTMLCanvasElement,
   clientX: number,
@@ -106,6 +131,10 @@ type FishSchool = {
   vyOff: Float32Array;
   /** Extra swim multiplier headroom; effective horizontal speed uses `speed * (1 + speedBoost)`. */
   speedBoost: Float32Array;
+  /** Active food pellet id, or -1 when not seeking. */
+  targetFoodId: Int32Array;
+  /** 0 = normal, 1 = seeking food. */
+  foodState: Uint8Array;
   /** Which compositing pass this fish belongs to (layered depth). */
   depth: Uint8Array;
   /** Index into `FISH_PALETTES` — dorsal / mid / belly / fin for each fish. */
@@ -143,6 +172,8 @@ function createFishSchool(capacity: number): FishSchool {
     vxOff: new Float32Array(capacity),
     vyOff: new Float32Array(capacity),
     speedBoost: new Float32Array(capacity),
+    targetFoodId: new Int32Array(capacity),
+    foodState: new Uint8Array(capacity),
     depth: new Uint8Array(capacity),
     paletteId: new Uint8Array(capacity),
     turnTimer: new Float32Array(capacity),
@@ -215,6 +246,8 @@ function initFishIndex(fish: FishSchool, i: number, w: number, h: number) {
   fish.vxOff[i] = 0;
   fish.vyOff[i] = 0;
   fish.speedBoost[i] = 0;
+  fish.targetFoodId[i] = -1;
+  fish.foodState[i] = 0;
   fish.depth[i] = FISH_DEPTH_CYCLE[i % FISH_DEPTH_CYCLE.length]!;
   fish.paletteId[i] = (Math.random() * nPalettes) | 0;
   fish.turnTimer[i] = nextRandomTurnTimerSec();
@@ -252,6 +285,8 @@ function resetFish(fish: FishSchool, w: number, h: number, count: number) {
     fish.vxOff[i] = 0;
     fish.vyOff[i] = 0;
     fish.speedBoost[i] = 0;
+    fish.targetFoodId[i] = -1;
+    fish.foodState[i] = 0;
     fish.turnTimer[i] = nextRandomTurnTimerSec();
     fish.turnCooldown[i] = 0;
   }
@@ -264,6 +299,7 @@ function stepFish(
   h: number,
   dt: number,
   pointer: PointerCanvasState,
+  food: FoodPellet[],
   count: number,
 ) {
   const margin = 40;
@@ -280,6 +316,8 @@ function stepFish(
   const randomTurnChance = 0.34;
   const turnCooldownSec = 0.34;
   const directFleeRadius = 34;
+  const detectRSq = FOOD_DETECTION_RADIUS * FOOD_DETECTION_RADIUS;
+  const eatRSq = FOOD_EAT_RADIUS * FOOD_EAT_RADIUS;
 
   // Same for every fish this frame — hoisted out of the loop.
   const followRate = Math.min(1, 6 * dt);
@@ -294,6 +332,72 @@ function stepFish(
   for (let i = 0; i < count; i++) {
     let targetVx = 0;
     let targetVy = 0;
+
+    // Food seek: lightweight, bounded scan (<= MAX_FOOD_PELLETS).
+    if (food.length > 0) {
+      let targetPellet: FoodPellet | null = null;
+      const existingId = fish.targetFoodId[i];
+      if (existingId >= 0) {
+        for (let k = 0; k < food.length; k++) {
+          const p = food[k]!;
+          if (p.active && p.id === existingId) {
+            targetPellet = p;
+            break;
+          }
+        }
+        if (!targetPellet) {
+          fish.targetFoodId[i] = -1;
+          fish.foodState[i] = 0;
+        }
+      }
+
+      if (!targetPellet) {
+        let best: FoodPellet | null = null;
+        let bestDistSq = detectRSq;
+        for (let k = 0; k < food.length; k++) {
+          const p = food[k]!;
+          if (!p.active) continue;
+          if (p.claimedBy !== -1 && p.claimedBy !== i) continue;
+          let dx = p.x - fish.x[i];
+          const dy = p.y - fish.y[i];
+          if (dx > halfW) dx -= w;
+          else if (dx < -halfW) dx += w;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestDistSq) {
+            bestDistSq = d2;
+            best = p;
+          }
+        }
+        if (best) {
+          best.claimedBy = i;
+          fish.targetFoodId[i] = best.id;
+          fish.foodState[i] = 1;
+          targetPellet = best;
+        }
+      }
+
+      if (targetPellet) {
+        let dx = targetPellet.x - fish.x[i];
+        const dy = targetPellet.y - fish.y[i];
+        if (dx > halfW) dx -= w;
+        else if (dx < -halfW) dx += w;
+        const distSq = dx * dx + dy * dy;
+        if (distSq <= eatRSq) {
+          targetPellet.active = false;
+          targetPellet.claimedBy = -1;
+          fish.targetFoodId[i] = -1;
+          fish.foodState[i] = 0;
+        } else if (distSq <= detectRSq) {
+          const dist = Math.sqrt(Math.max(1e-6, distSq));
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const mag = 44;
+          targetVx += nx * mag;
+          targetVy += ny * mag;
+          fish.speedBoost[i] = Math.min(maxSpeedBoost, fish.speedBoost[i] + 0.6 * dt);
+        }
+      }
+    }
 
     if (pointerActive) {
       let dx = pointer.x - fish.x[i];
@@ -1365,6 +1469,8 @@ function drawAquariumPoetry(
 type AquariumCanvasProps = {
   /** Optional ref to read the latest pointer position in canvas coordinates (no re-renders). */
   pointerCanvasRef?: MutableRefObject<PointerCanvasState>;
+  /** Optional ref to read whether feed mode is active (no re-renders). */
+  feedModeRef?: MutableRefObject<boolean>;
   /**
    * When provided, ambience and fish count are read here each frame (not from props).
    * When omitted, an internal ref is kept in sync from `ambience` / `fishCount` props each render.
@@ -1383,6 +1489,10 @@ type AquariumCanvasSimulation = {
   buf: FloatBuffers;
   fish: FishSchool;
   pointerBubbles: PointerBubbleBuf;
+  food: {
+    nextId: number;
+    pellets: FoodPellet[];
+  };
   pointerSpawn: {
     lastT: number;
     lastX: number;
@@ -1411,6 +1521,7 @@ function createAquariumSimulation(): AquariumCanvasSimulation {
     buf: createBuffers(),
     fish: createFishSchool(MAX_FISH_COUNT),
     pointerBubbles: createPointerBubbleBuf(),
+    food: { nextId: 1, pellets: [] },
     pointerSpawn: { lastT: 0, lastX: 0, lastY: 0, initialized: false },
     lastCssW: -1,
     lastCssH: -1,
@@ -1432,6 +1543,7 @@ function clampFishCount(n: number) {
 
 function AquariumCanvasComponent({
   pointerCanvasRef: pointerCanvasRefProp,
+  feedModeRef,
   runtimeSettingsRef: runtimeSettingsRefProp,
   ambience = "night",
   fishCount = DEFAULT_FISH_COUNT,
@@ -1505,8 +1617,71 @@ function AquariumCanvasComponent({
     sim.poetryRaster = null;
 
     const { buf, fish, pointerBubbles, pointerSpawn } = sim;
+    const foodSim = sim.food;
     const effectStartMs = performance.now();
     let rafId = 0;
+
+    const spawnFoodAt = (x: number, y: number) => {
+      const now = performance.now();
+      const pellets = foodSim.pellets;
+      const spawnCount = Math.random() < 0.35 ? 2 : 1;
+      for (let i = 0; i < spawnCount; i++) {
+        if (pellets.length >= MAX_FOOD_PELLETS) break;
+        pellets.push({
+          id: foodSim.nextId++,
+          x: x + randBetween(-6, 6),
+          y: y + randBetween(-4, 4),
+          vy: randBetween(FOOD_FALL_SPEED_MIN, FOOD_FALL_SPEED_MAX),
+          driftX: randBetween(-FOOD_DRIFT_RANGE, FOOD_DRIFT_RANGE),
+          radius: 3,
+          active: true,
+          createdAt: now,
+          claimedBy: -1,
+        });
+      }
+    };
+
+    const stepFood = (dt: number, cssW: number, cssH: number, nowMs: number) => {
+      const pellets = foodSim.pellets;
+      if (pellets.length === 0) return;
+      let write = 0;
+      for (let i = 0; i < pellets.length; i++) {
+        const p = pellets[i]!;
+        if (p.active) {
+          p.y += p.vy * dt;
+          p.x += p.driftX * dt;
+          // Keep food in a reasonable x span; wrap like fish for simplicity.
+          if (p.x < -20) p.x += cssW + 40;
+          else if (p.x > cssW + 20) p.x -= cssW + 40;
+
+          const expired = nowMs - p.createdAt > FOOD_LIFETIME_MS;
+          const outOfBounds = p.y > cssH + 24;
+          if (expired || outOfBounds) {
+            p.active = false;
+            p.claimedBy = -1;
+          }
+        }
+        if (p.active) {
+          pellets[write++] = p;
+        }
+      }
+      if (write !== pellets.length) pellets.length = write;
+    };
+
+    const drawFood = (ctx: CanvasRenderingContext2D, ambienceNow: AquariumAmbience) => {
+      const pellets = foodSim.pellets;
+      if (pellets.length === 0) return;
+      ctx.save();
+      ctx.fillStyle =
+        ambienceNow === "night" ? "rgba(240, 210, 160, 0.75)" : "rgba(140, 94, 46, 0.55)";
+      for (let i = 0; i < pellets.length; i++) {
+        const p = pellets[i]!;
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.radius * 1.15, p.radius, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    };
 
     const trySpawnPointerTrail = () => {
       const p = pointerCanvasRef.current;
@@ -1564,6 +1739,9 @@ function AquariumCanvasComponent({
       const burst = e.pointerType === "touch" || e.pointerType === "pen" ? 2 : 1;
       for (let k = 0; k < burst; k++) {
         spawnPointerBubble(pointerBubbles, p.x, p.y, w, h);
+      }
+      if (feedModeRef?.current) {
+        spawnFoodAt(p.x, p.y);
       }
     };
 
@@ -1655,7 +1833,8 @@ function AquariumCanvasComponent({
       stepParticles(buf, cssW, cssH, dt);
       stepBubbles(buf, cssW, cssH, dt, timeSec);
       stepPointerBubbles(pointerBubbles, cssW, dt, timeSec);
-      stepFish(fish, cssW, cssH, dt, pointerCanvasRef.current, n);
+      stepFood(dt, cssW, cssH, now);
+      stepFish(fish, cssW, cssH, dt, pointerCanvasRef.current, foodSim.pellets, n);
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
@@ -1710,6 +1889,7 @@ function AquariumCanvasComponent({
           poetryT,
         );
       }
+      drawFood(ctx, ambienceNow);
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_BACK, fishVisibleCount, cssW);
       if (midgroundT > 0.01) {
         ctx.save();

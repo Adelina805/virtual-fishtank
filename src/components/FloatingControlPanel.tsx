@@ -3,6 +3,8 @@
 type FloatingControlPanelProps = {
   isNight: boolean;
   onToggleDayNight: () => void;
+  isFeedMode: boolean;
+  onToggleFeedMode: () => void;
   fishCount: number;
   defaultFishCount: number;
   maxFishCount: number;
@@ -69,6 +71,28 @@ function FishIcon({ className }: { className?: string }) {
   );
 }
 
+function FishFoodIcon({ className }: { className?: string }) {
+  // Placeholder icon (replace with your final SVG later).
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M6 15c2-1 3-2 3-4 0-2-1-3-3-4" />
+      <path d="M18 15c-2-1-3-2-3-4 0-2 1-3 3-4" />
+      <circle cx="12" cy="12" r="1.2" />
+      <circle cx="9.5" cy="17.2" r="1" />
+      <circle cx="14.5" cy="17.2" r="1" />
+    </svg>
+  );
+}
+
 function PlusIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -108,6 +132,8 @@ function RotateCcwIcon({ className }: { className?: string }) {
 export default function FloatingControlPanel({
   isNight,
   onToggleDayNight,
+  isFeedMode,
+  onToggleFeedMode,
   fishCount,
   defaultFishCount,
   maxFishCount,
@@ -126,6 +152,12 @@ export default function FloatingControlPanel({
   const toolbarIconBtn = isNight
     ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/[0.88] transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/[0.09] active:scale-[0.97] active:bg-white/[0.12] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
     : "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-950 transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/90 active:scale-[0.97] active:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60";
+
+  const feedBtn = isFeedMode
+    ? isNight
+      ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.12] text-white transition-[background-color,color,transform] duration-200 ease-out hover:bg-white/[0.16] active:scale-[0.97] active:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
+      : "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-950/12 text-slate-950 transition-[background-color,color,transform] duration-200 ease-out hover:bg-slate-950/16 active:scale-[0.97] active:bg-slate-950/18 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60"
+    : toolbarIconBtn;
 
   const addBtn = atMax
     ? isNight
@@ -213,6 +245,17 @@ export default function FloatingControlPanel({
             }
             aria-hidden
           />
+
+          <button
+            type="button"
+            className={feedBtn}
+            onClick={onToggleFeedMode}
+            aria-pressed={isFeedMode}
+            aria-label={isFeedMode ? "Exit feed mode" : "Enter feed mode"}
+            title={isFeedMode ? "Feed mode: on" : "Feed mode: off"}
+          >
+            <FishFoodIcon className="h-4.5 w-4.5" />
+          </button>
 
           <button
             type="button"

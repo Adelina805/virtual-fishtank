@@ -28,6 +28,7 @@ export default function HomeAquariumExperience() {
   // Keep initial SSR/CSR markup identical; hydrate preference after mount.
   const [isNight, setIsNight] = useState(true);
   const [fishCount, setFishCount] = useState(DEFAULT_FISH_COUNT);
+  const [isFeedMode, setIsFeedMode] = useState(false);
   const [sceneVisible, setSceneVisible] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   // Must start null on server and client so the first paint matches (avoids hydration mismatch).
@@ -41,6 +42,10 @@ export default function HomeAquariumExperience() {
   });
   runtimeSettingsRef.current.ambience = isNight ? "night" : "day";
   runtimeSettingsRef.current.fishCount = fishCount;
+
+  // Read by the canvas RAF loop without causing re-renders.
+  const feedModeRef = useRef(false);
+  feedModeRef.current = isFeedMode;
 
   useEffect(() => {
     const stored =
@@ -153,6 +158,7 @@ export default function HomeAquariumExperience() {
         >
           <AquariumCanvas
             runtimeSettingsRef={runtimeSettingsRef}
+            feedModeRef={feedModeRef}
             poemFontFamily={poemFont.style.fontFamily}
           />
         </div>
@@ -186,6 +192,8 @@ export default function HomeAquariumExperience() {
         <FloatingControlPanel
           isNight={isNight}
           onToggleDayNight={() => setIsNight((v) => !v)}
+          isFeedMode={isFeedMode}
+          onToggleFeedMode={() => setIsFeedMode((v) => !v)}
           fishCount={fishCount}
           defaultFishCount={DEFAULT_FISH_COUNT}
           maxFishCount={MAX_FISH_COUNT}
