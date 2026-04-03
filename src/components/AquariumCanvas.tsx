@@ -37,10 +37,29 @@ type FoodPellet = {
 
 const MAX_FOOD_PELLETS = 20;
 const FOOD_LIFETIME_MS = 5000;
-/** Fish within this range get first pick of unclaimed pellets each frame. */
+/** Pass 1: fish within this range pick pellets before global assignment. */
 const FOOD_DETECTION_RADIUS = 250;
-const FOOD_EAT_RADIUS = 5;
-const FOOD_ARRIVE_RADIUS = 28;
+/**
+ * Fish slow down inside this radius (center → pellet) to reduce overshoot / orbiting.
+ * Must be comfortably larger than eat distance.
+ */
+const FOOD_SLOWING_RADIUS = 48;
+/**
+ * Mouth–pellet contact distance (CSS px): snout tip to pellet center, after bob alignment.
+ * Pellet `radius` is added so larger pellets are easier to “touch.”
+ */
+const FOOD_EAT_RADIUS = 5.2;
+/** Require this many consecutive frames of valid mouth overlap before consuming (kills 1-frame false positives). */
+const FOOD_BITE_CONFIRM_FRAMES = 2;
+
+/** Pursuit speed multiplier range once `foodChaseT` reaches 1 (smooth ramp in/out). */
+const FOOD_CHASE_SPEED_MUL_MIN = 1.82;
+const FOOD_CHASE_SPEED_MUL_MAX = 2.38;
+/** How fast pursuit intensity ramps up (seeking) / down (idle), in 1/seconds. */
+const FOOD_CHASE_RAMP_UP_PER_S = 3.2;
+const FOOD_CHASE_RAMP_DOWN_PER_S = 2.0;
+/** Seek steering responsiveness = wander × this (scaled by chase blend). */
+const FOOD_SEEK_STEERING_GAIN = 2.35;
 // Speeds are in CSS px/s (dt is seconds).
 const FOOD_FALL_SPEED_MIN = 34;
 const FOOD_FALL_SPEED_MAX = 62;
@@ -151,6 +170,10 @@ type FishSchool = {
   foodState: Uint8Array;
   /** Seconds remaining in Eat / Resume states. */
   foodPhaseTimer: Float32Array;
+  /** 0–1 smoothed pursuit intensity (speed + steering); eases in when seeking, out when idle. */
+  foodChaseT: Float32Array;
+  /** Consecutive frames mouth overlapped pellet; reset when overlap breaks. */
+  foodBiteFrames: Uint8Array;
   /** Which compositing pass this fish belongs to (layered depth). */
   depth: Uint8Array;
   /** Index into `FISH_PALETTES` — dorsal / mid / belly / fin for each fish. */
@@ -191,6 +214,8 @@ function createFishSchool(capacity: number): FishSchool {
     targetFoodId: new Int32Array(capacity),
     foodState: new Uint8Array(capacity),
     foodPhaseTimer: new Float32Array(capacity),
+    foodChaseT: new Float32Array(capacity),
+    foodBiteFrames: new Uint8Array(capacity),
     depth: new Uint8Array(capacity),
     paletteId: new Uint8Array(capacity),
     turnTimer: new Float32Array(capacity),
@@ -266,6 +291,8 @@ function initFishIndex(fish: FishSchool, i: number, w: number, h: number) {
   fish.targetFoodId[i] = -1;
   fish.foodState[i] = FISH_FS_WANDER;
   fish.foodPhaseTimer[i] = 0;
+  fish.foodChaseT[i] = 0;
+  fish.foodBiteFrames[i] = 0;
   fish.depth[i] = FISH_DEPTH_CYCLE[i % FISH_DEPTH_CYCLE.length]!;
   fish.paletteId[i] = (Math.random() * nPalettes) | 0;
   fish.turnTimer[i] = nextRandomTurnTimerSec();
@@ -306,6 +333,8 @@ function resetFish(fish: FishSchool, w: number, h: number, count: number) {
     fish.targetFoodId[i] = -1;
     fish.foodState[i] = FISH_FS_WANDER;
     fish.foodPhaseTimer[i] = 0;
+    fish.foodChaseT[i] = 0;
+    fish.foodBiteFrames[i] = 0;
     fish.turnTimer[i] = nextRandomTurnTimerSec();
     fish.turnCooldown[i] = 0;
   }
@@ -327,6 +356,57 @@ function fishPelletDistSq(
 ): number {
   const dx = wrapDeltaX(fx, pellet.x, w);
   const dy = pellet.y - fy;
+  return dx * dx + dy * dy;
+}
+
+/** Matches `drawFish` / `drawFishSchool`: body ellipse tip along +local X → world snout. */
+const FISH_UNIT_SNOUT_X = 22 * (0.44 - 0.12);
+
+function smoothstep01(t: number): number {
+  const x = Math.max(0, Math.min(1, t));
+  return x * x * (3 - 2 * x);
+}
+
+function fishMouthWorld(
+  fish: FishSchool,
+  i: number,
+  w: number,
+  timeSec: number,
+): { mx: number; my: number } {
+  const depthScale =
+    fish.depth[i] === FISH_DEPTH_BACK
+      ? 0.7
+      : fish.depth[i] === FISH_DEPTH_FRONT
+        ? 1.14
+        : 1;
+  const snout = FISH_UNIT_SNOUT_X * fish.size[i] * depthScale;
+  const mx = fish.x[i]! + fish.dir[i]! * snout;
+  const bobHz = 0.78 + i * 0.085;
+  const bobAmp =
+    fish.depth[i] === FISH_DEPTH_BACK
+      ? 0.72
+      : fish.depth[i] === FISH_DEPTH_FRONT
+        ? 1.08
+        : 1;
+  const bob =
+    Math.sin(timeSec * bobHz + fish.bobPhase[i]!) *
+    (5 + fish.size[i]! * 9) *
+    bobAmp *
+    0.72;
+  const my = fish.y[i]! + bob;
+  return { mx, my };
+}
+
+function mouthPelletDistSq(
+  fish: FishSchool,
+  i: number,
+  pellet: FoodPellet,
+  w: number,
+  timeSec: number,
+): number {
+  const { mx, my } = fishMouthWorld(fish, i, w, timeSec);
+  const dx = wrapDeltaX(mx, pellet.x, w);
+  const dy = pellet.y - my;
   return dx * dx + dy * dy;
 }
 
@@ -474,6 +554,7 @@ function stepFish(
   pointer: PointerCanvasState,
   food: FoodPellet[],
   count: number,
+  timeSec: number,
 ) {
   const margin = 40;
   const top = h * 0.14;
@@ -490,10 +571,8 @@ function stepFish(
   const turnCooldownSec = 0.34;
   const directFleeRadius = 34;
   const detectRSq = FOOD_DETECTION_RADIUS * FOOD_DETECTION_RADIUS;
-  const arriveRSq = FOOD_ARRIVE_RADIUS * FOOD_ARRIVE_RADIUS;
-  /** Extra pursuit speed multiplier while seeking (full 2D). */
-    const foodSeekSpeedMul = 1.22;
-    const minFacingSpeed = 1.5;
+  const slowingR = Math.max(FOOD_EAT_RADIUS * 4, FOOD_SLOWING_RADIUS);
+  const minFacingSpeed = 1.5;
 
   if (food.length > 0) {
     assignFoodClaims(fish, food, count, w, detectRSq);
@@ -512,7 +591,6 @@ function stepFish(
   }
 
   const followRateWander = Math.min(1, 6 * dt);
-  const followRateSeek = Math.min(1, 14 * dt);
   const decay = pointer.inCanvas ? 1 : Math.max(0, 1 - 1.9 * dt);
   const halfW = w * 0.5;
   const influenceRSq = influenceR * influenceR;
@@ -524,6 +602,11 @@ function stepFish(
 
     if (st === FISH_FS_EAT) {
       fish.foodPhaseTimer[i] -= dt;
+      fish.foodChaseT[i] = Math.max(
+        0,
+        fish.foodChaseT[i] - FOOD_CHASE_RAMP_DOWN_PER_S * 1.4 * dt,
+      );
+      fish.foodBiteFrames[i] = 0;
       fish.speedBoost[i] = Math.max(0, fish.speedBoost[i] - boostDecayPerSec * 2.2 * dt);
       fish.vxOff[i] *= Math.max(0, 1 - 5.5 * dt);
       fish.vyOff[i] *= Math.max(0, 1 - 5.5 * dt);
@@ -558,6 +641,19 @@ function stepFish(
       st === FISH_FS_RESUME
         ? Math.max(0, Math.min(1, fish.foodPhaseTimer[i] / FISH_RESUME_BLEND_SEC))
         : 0;
+
+    if (seeking) {
+      fish.foodChaseT[i] = Math.min(
+        1,
+        fish.foodChaseT[i] + FOOD_CHASE_RAMP_UP_PER_S * dt,
+      );
+    } else {
+      fish.foodChaseT[i] = Math.max(
+        0,
+        fish.foodChaseT[i] - FOOD_CHASE_RAMP_DOWN_PER_S * dt,
+      );
+      fish.foodBiteFrames[i] = 0;
+    }
 
     if (st === FISH_FS_RESUME) {
       fish.foodPhaseTimer[i] -= dt;
@@ -629,6 +725,13 @@ function stepFish(
       }
     }
 
+    const chaseEase = smoothstep01(fish.foodChaseT[i]!);
+    const followRateSeek = Math.min(
+      1,
+      followRateWander *
+        (1 + (FOOD_SEEK_STEERING_GAIN - 1) * (0.35 + 0.65 * chaseEase)),
+    );
+
     if (seeking && targetPellet) {
       let dx = wrapDeltaX(fish.x[i]!, targetPellet.x, w);
       const dy = targetPellet.y - fish.y[i]!;
@@ -636,15 +739,26 @@ function stepFish(
       const dist = Math.sqrt(Math.max(1e-6, distSq));
       const nx = dx / dist;
       const ny = dy / dist;
-      const arriveT =
-        distSq < arriveRSq
-          ? Math.max(0, Math.min(1, dist / FOOD_ARRIVE_RADIUS))
-          : 1;
-      const baseSwim = fish.speed[i] * (1 + fish.speedBoost[i]) * foodSeekSpeedMul;
-      const desiredVx = nx * baseSwim * arriveT;
-      const desiredVy = ny * baseSwim * arriveT;
 
-      fish.speedBoost[i] = Math.min(maxSpeedBoost, fish.speedBoost[i] + 0.85 * dt);
+      const swimMulPre = 1 + fish.speedBoost[i]!;
+      const chaseMul =
+        FOOD_CHASE_SPEED_MUL_MIN +
+        (FOOD_CHASE_SPEED_MUL_MAX - FOOD_CHASE_SPEED_MUL_MIN) * chaseEase;
+      const maxChaseSpeed = fish.speed[i]! * swimMulPre * chaseMul;
+
+      let desiredSpeed = maxChaseSpeed;
+      if (dist < slowingR) {
+        const u = dist / slowingR;
+        desiredSpeed *= Math.max(0.1, u);
+      }
+
+      const desiredVx = nx * desiredSpeed;
+      const desiredVy = ny * desiredSpeed;
+
+      fish.speedBoost[i] = Math.min(
+        maxSpeedBoost,
+        fish.speedBoost[i] + 0.35 * chaseEase * dt,
+      );
 
       const ptrW = 0.28;
       targetVx = desiredVx + pointerVx * ptrW;
@@ -659,8 +773,10 @@ function stepFish(
     fish.vxOff[i] += (targetVx - fish.vxOff[i]) * fr;
     fish.vyOff[i] += (targetVy - fish.vyOff[i]) * fr;
 
-    fish.vxOff[i] *= decay;
-    fish.vyOff[i] *= decay;
+    const seekVelDecay =
+      seeking ? Math.max(decay, 1 - 0.35 * dt) : decay;
+    fish.vxOff[i] *= seekVelDecay;
+    fish.vyOff[i] *= seekVelDecay;
 
     fish.turnCooldown[i] = Math.max(0, fish.turnCooldown[i] - dt);
     fish.turnTimer[i] -= dt;
@@ -677,7 +793,11 @@ function stepFish(
       }
     }
 
-    fish.speedBoost[i] = Math.max(0, fish.speedBoost[i] - boostDecayPerSec * dt);
+    const boostDecayMul = seeking ? 0.42 : 1;
+    fish.speedBoost[i] = Math.max(
+      0,
+      fish.speedBoost[i] - boostDecayPerSec * boostDecayMul * dt,
+    );
     const swimMul = 1 + fish.speedBoost[i];
     let vx: number;
     let vy: number;
@@ -699,24 +819,23 @@ function stepFish(
     else if (horizForFacing < -minFacingSpeed) fish.dir[i] = -1;
 
     if (seeking && targetPellet && targetPellet.active) {
-      let dx = wrapDeltaX(fish.x[i]!, targetPellet.x, w);
-      const dy = targetPellet.y - fish.y[i]!;
-      const depthScale =
-        fish.depth[i] === FISH_DEPTH_BACK
-          ? 0.7
-          : fish.depth[i] === FISH_DEPTH_FRONT
-            ? 1.14
-            : 1;
-      const mouthOffsetX = fish.dir[i] * 22 * 0.32 * fish.size[i] * depthScale;
-      const mdx = dx - mouthOffsetX;
-      const eatR = Math.max(2.2, FOOD_EAT_RADIUS * 0.85 + targetPellet.radius);
+      const biteD2 = mouthPelletDistSq(fish, i, targetPellet, w, timeSec);
+      const eatR = FOOD_EAT_RADIUS + targetPellet.radius * 0.95;
       const eatRSq = eatR * eatR;
-      if (mdx * mdx + dy * dy <= eatRSq) {
-        targetPellet.active = false;
-        targetPellet.claimedBy = -1;
-        fish.targetFoodId[i] = -1;
-        fish.foodState[i] = FISH_FS_EAT;
-        fish.foodPhaseTimer[i] = FISH_EAT_HOLD_SEC;
+      if (biteD2 <= eatRSq) {
+        const next = fish.foodBiteFrames[i]! + 1;
+        if (next >= FOOD_BITE_CONFIRM_FRAMES) {
+          targetPellet.active = false;
+          targetPellet.claimedBy = -1;
+          fish.targetFoodId[i] = -1;
+          fish.foodState[i] = FISH_FS_EAT;
+          fish.foodPhaseTimer[i] = FISH_EAT_HOLD_SEC;
+          fish.foodBiteFrames[i] = 0;
+        } else {
+          fish.foodBiteFrames[i] = next;
+        }
+      } else {
+        fish.foodBiteFrames[i] = 0;
       }
     }
 
@@ -2067,7 +2186,16 @@ function AquariumCanvasComponent({
       stepBubbles(buf, cssW, cssH, dt, timeSec);
       stepPointerBubbles(pointerBubbles, cssW, dt, timeSec);
       stepFood(dt, cssW, cssH, now);
-      stepFish(fish, cssW, cssH, dt, pointerCanvasRef.current, foodSim.pellets, n);
+      stepFish(
+        fish,
+        cssW,
+        cssH,
+        dt,
+        pointerCanvasRef.current,
+        foodSim.pellets,
+        n,
+        timeSec,
+      );
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
