@@ -52,6 +52,11 @@ const FOOD_EAT_RADIUS = 5.2;
 /** Require this many consecutive frames of valid mouth overlap before consuming (kills 1-frame false positives). */
 const FOOD_BITE_CONFIRM_FRAMES = 2;
 
+/**
+ * Draw snout bite circle + center (same geometry as `mouthPelletDistSq` / `stepFish`). Set to `false` when done debugging.
+ */
+const DEBUG_SHOW_FISH_MOUTH_HITBOX = false;
+
 /** Pursuit speed multiplier range once `foodChaseT` reaches 1 (smooth ramp in/out). */
 const FOOD_CHASE_SPEED_MUL_MIN = 1.82;
 const FOOD_CHASE_SPEED_MUL_MAX = 2.38;
@@ -1000,6 +1005,65 @@ function drawFishSchool(
       fish.depth[i]!,
     );
   }
+}
+
+function drawFishMouthHitboxesDebug(
+  ctx: CanvasRenderingContext2D,
+  fish: FishSchool,
+  timeSec: number,
+  count: number,
+  tankWidth: number,
+  food: FoodPellet[],
+): void {
+  if (!DEBUG_SHOW_FISH_MOUTH_HITBOX) return;
+
+  const left = -FISH_DRAW_MARGIN_X;
+  const right = tankWidth + FISH_DRAW_MARGIN_X;
+
+  ctx.save();
+  ctx.lineWidth = 1.25;
+  ctx.setLineDash([5, 4]);
+
+  for (let i = 0; i < count; i++) {
+    const x = fish.x[i]!;
+    if (x < left || x > right) continue;
+
+    const { mx, my } = fishMouthWorld(fish, i, tankWidth, timeSec);
+    let radius = FOOD_EAT_RADIUS;
+    const tid = fish.targetFoodId[i]!;
+    if (tid >= 0 && fish.foodState[i] === FISH_FS_SEEK_FOOD) {
+      for (let k = 0; k < food.length; k++) {
+        const p = food[k]!;
+        if (p.active && p.id === tid) {
+          radius = FOOD_EAT_RADIUS + p.radius * 0.95;
+          break;
+        }
+      }
+    }
+
+    const biteBuilding = fish.foodBiteFrames[i]! > 0;
+    ctx.strokeStyle = biteBuilding
+      ? "rgba(255, 65, 90, 0.95)"
+      : "rgba(40, 255, 130, 0.82)";
+    ctx.fillStyle = biteBuilding
+      ? "rgba(255, 65, 90, 0.16)"
+      : "rgba(40, 255, 130, 0.1)";
+    ctx.beginPath();
+    ctx.arc(mx, my, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.fillStyle = biteBuilding
+      ? "rgba(255, 220, 80, 0.95)"
+      : "rgba(255, 255, 255, 0.92)";
+    ctx.beginPath();
+    ctx.arc(mx, my, 2.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.setLineDash([5, 4]);
+  }
+
+  ctx.restore();
 }
 
 type FloatBuffers = {
@@ -2281,6 +2345,16 @@ function AquariumCanvasComponent({
         drawBubbles(ctx, buf, timeSec, cssW, cssH);
         drawPointerBubbles(ctx, pointerBubbles, timeSec, cssW, cssH);
         ctx.restore();
+      }
+      if (DEBUG_SHOW_FISH_MOUTH_HITBOX) {
+        drawFishMouthHitboxesDebug(
+          ctx,
+          fish,
+          timeSec,
+          fishVisibleCount,
+          cssW,
+          foodSim.pellets,
+        );
       }
       if (wakeVeilT < 0.999) {
         ctx.save();
