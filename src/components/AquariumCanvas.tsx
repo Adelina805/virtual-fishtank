@@ -1630,7 +1630,16 @@ function drawDistantReef(
     width * 0.88,
     ridgeY + height * 0.03,
   );
-  ctx.bezierCurveTo(width * 0.96, ridgeY + height * 0.08, width, ridgeY + height * 0.14, width, bottom);
+  // Match left edge: smooth wave to (w, ridgeY+0.12h), then vertical to bottom (same y as lineTo on left).
+  ctx.bezierCurveTo(
+    width * 0.96,
+    ridgeY + height * 0.015,
+    width,
+    ridgeY + height * 0.055,
+    width,
+    ridgeY + height * 0.12,
+  );
+  ctx.lineTo(width, bottom);
   ctx.closePath();
   ctx.fillStyle = "rgba(32, 92, 102, 0.38)";
   ctx.fill();
