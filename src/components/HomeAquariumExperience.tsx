@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import FloatingControlPanel from "@/src/components/FloatingControlPanel";
+import PlayModeControls from "@/src/components/PlayModeControls";
+import ThemeToggle from "@/src/components/ThemeToggle";
 import AquariumTankLayer, {
   type PoetryLayout,
 } from "@/src/components/shell/AquariumTankLayer";
@@ -113,10 +114,15 @@ export default function HomeAquariumExperience() {
               relaxBreathAmbientRef={relaxBreathAmbientRef}
             />
           }
-          aquariumControls={
-            <FloatingControlPanel
+          globalControls={
+            <ThemeToggle
               isNight={isNight}
               onToggleDayNight={() => setIsNight((v) => !v)}
+            />
+          }
+          playControls={
+            <PlayModeControls
+              isNight={isNight}
               isFeedMode={isFeedMode}
               onToggleFeedMode={() => setIsFeedMode((v) => !v)}
               fishCount={fishCount}

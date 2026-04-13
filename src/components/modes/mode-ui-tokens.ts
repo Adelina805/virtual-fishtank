@@ -1,6 +1,6 @@
 /**
  * Shared Tailwind fragments for mode HUD controls so they align with the
- * aquarium toolbar (FloatingControlPanel / ModeToggle) without heavy panels.
+ * aquarium controls (PlayModeControls / ModeToggle) without heavy panels.
  */
 export function modeHudMicroPill(isNight: boolean): string {
   return isNight

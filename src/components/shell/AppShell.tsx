@@ -14,8 +14,10 @@ export type AppShellProps = {
   controlsVisible: boolean;
   /** Simulation + LCP layer (absolute inset-0). */
   tankLayer: ReactNode;
-  /** Top-right aquarium controls (fish, feed, day/night). */
-  aquariumControls: ReactNode;
+  /** Top-right global controls (theme toggle). */
+  globalControls: ReactNode;
+  /** Play-mode controls (fish and feed actions). */
+  playControls: ReactNode;
   /** Shared Relax breath state for canvas sync (fish / light). */
   relaxBreathAmbientRef: MutableRefObject<RelaxBreathAmbientState>;
 };
@@ -29,7 +31,8 @@ export default function AppShell({
   sceneVisible,
   controlsVisible,
   tankLayer,
-  aquariumControls,
+  globalControls,
+  playControls,
   relaxBreathAmbientRef,
 }: AppShellProps) {
   const { mode } = useAppMode();
@@ -76,6 +79,11 @@ export default function AppShell({
           sceneVisible ? "translate-y-0 opacity-100" : "translate-y-1.5 opacity-0"
         }`}
       >
+        {mode === "play" ? (
+          <div className="pointer-events-auto mx-auto mb-2 flex justify-center sm:mb-3">
+            {playControls}
+          </div>
+        ) : null}
         <div className="pointer-events-auto mx-auto flex justify-center">
           <ModeToggle isNight={isNight} />
         </div>
@@ -100,13 +108,13 @@ export default function AppShell({
       </a>
 
       <aside
-        className={`pointer-events-none absolute inset-e-[max(1.25rem,env(safe-area-inset-right))] top-[max(0.35rem,env(safe-area-inset-top))] z-10 w-max max-w-[min(100vw-2rem,20rem)] transition-[opacity,transform] duration-700 ease-out sm:inset-e-[max(1.75rem,env(safe-area-inset-right))] sm:top-[max(0.5rem,env(safe-area-inset-top))] ${
+        className={`pointer-events-none absolute inset-e-[max(0.5rem,env(safe-area-inset-right))] top-[max(0.5rem,env(safe-area-inset-top))] z-10 w-max max-w-[min(100vw-1rem,20rem)] transition-[opacity,transform] duration-700 ease-out sm:inset-e-[max(0.75rem,env(safe-area-inset-right))] sm:top-[max(0.75rem,env(safe-area-inset-top))] ${
           controlsVisible
             ? "translate-y-0 opacity-100"
             : "-translate-y-1.5 opacity-0"
         }`}
       >
-        {aquariumControls}
+        {globalControls}
       </aside>
     </div>
   );
