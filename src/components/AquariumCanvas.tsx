@@ -8,6 +8,10 @@ import {
   type MutableRefObject,
 } from "react";
 import type { AppMode } from "@/src/lib/app-mode";
+import {
+  aquariumPoetryTaglineColor,
+  aquariumPoetryTitleColor,
+} from "@/src/lib/aquarium-poetry-colors";
 import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 import { MODE_TAGLINES } from "@/src/lib/mode-taglines";
 import {
@@ -1918,12 +1922,9 @@ function drawAquariumPoetry(
   ctx.textBaseline = "middle";
 
   const night = ambience === "night";
-  const titleFill = night
-    ? "rgba(255, 250, 245, 0.54)"
-    : "rgba(18, 50, 70, 0.72)";
-  const lineFill = night
-    ? "rgba(200, 228, 248, 0.38)"
-    : "rgba(26, 68, 86, 0.48)";
+  const poetryTheme = night ? "night" : "day";
+  const titleFill = aquariumPoetryTitleColor(poetryTheme);
+  const lineFill = aquariumPoetryTaglineColor(poetryTheme);
   const glow = night
     ? "rgba(160, 220, 255, 0.32)"
     : "rgba(255, 255, 255, 0.5)";

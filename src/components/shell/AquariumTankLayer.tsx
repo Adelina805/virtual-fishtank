@@ -4,6 +4,10 @@ import { Dancing_Script } from "next/font/google";
 import dynamic from "next/dynamic";
 import { useLayoutEffect, useRef, type MutableRefObject } from "react";
 import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
+import {
+  aquariumPoetryTaglineColor,
+  aquariumPoetryTitleColor,
+} from "@/src/lib/aquarium-poetry-colors";
 import { MODE_TAGLINES } from "@/src/lib/mode-taglines";
 import {
   getAquariumPoetryLayout,
@@ -50,6 +54,7 @@ export default function AquariumTankLayer({
   }, [mode]);
 
   const tagline = MODE_TAGLINES[mode];
+  const poetryTheme = isNight ? "night" : "day";
 
   return (
     <div ref={tankMeasureRef} className="absolute inset-0 z-0 min-h-0">
@@ -65,9 +70,7 @@ export default function AquariumTankLayer({
               style={{
                 fontSize: poetryLayout.titleSize,
                 lineHeight: `${poetryLayout.titleLineHeight}px`,
-                color: isNight
-                  ? "rgba(255, 250, 245, 0.54)"
-                  : "rgba(18, 50, 70, 0.72)",
+                color: aquariumPoetryTitleColor(poetryTheme),
               }}
             >
               Aquacalma
@@ -78,9 +81,7 @@ export default function AquariumTankLayer({
                 marginTop: poetryLayout.taglinesMarginTop,
                 fontSize: poetryLayout.lineSize,
                 lineHeight: `${poetryLayout.lineHeight}px`,
-                color: isNight
-                  ? "rgba(200, 228, 248, 0.38)"
-                  : "rgba(26, 68, 86, 0.48)",
+                color: aquariumPoetryTaglineColor(poetryTheme),
               }}
             >
               {tagline}

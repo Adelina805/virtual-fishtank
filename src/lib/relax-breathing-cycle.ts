@@ -45,12 +45,19 @@ export const RELAX_BREATH_AMBIENT_IDLE: RelaxBreathAmbientState = {
 
 export type RelaxBreathFrame = {
   phase: RelaxBreathPhase;
-  /** Eased breath fullness 0…1 (drives disc scale / opacity). */
+  /** Eased breath fullness 0…1 (drives radial ring scale / opacity). */
   scale01: number;
   fishDtScale: number;
   lightOverlayAlpha: number;
   /** Linear 0…1 position in the full cycle (for debugging / future use). */
   cyclePosition01: number;
+};
+
+/** Center label copy — single word per phase, no numerals. */
+export const RELAX_BREATH_PHASE_LABEL: Record<RelaxBreathPhase, string> = {
+  inhale: "inhale",
+  hold: "hold",
+  exhale: "exhale",
 };
 
 function clamp01(t: number): number {
@@ -73,6 +80,18 @@ export function relaxBreathSmootherstep(t: number): number {
   return x * x * x * (x * (x * 6 - 15) + 10);
 }
 
+/** Ease-out cubic — expansion settles gently (inhale). */
+export function relaxBreathEaseOutCubic(t: number): number {
+  const x = clamp01(t);
+  return 1 - (1 - x) ** 3;
+}
+
+/** Ease-in cubic — contraction eases in softly (exhale). */
+export function relaxBreathEaseInCubic(t: number): number {
+  const x = clamp01(t);
+  return x * x * x;
+}
+
 /**
  * Given elapsed time since cycle start (any non-negative ms), returns the current frame.
  */
@@ -92,8 +111,7 @@ export function computeRelaxBreathFrame(
   if (t < timing.inhaleMs) {
     phase = "inhale";
     phaseLocal01 = t / timing.inhaleMs;
-    scale01 = relaxBreathSmootherstep(phaseLocal01);
-    // Slightly slower fish at the start of inhale, easing toward normal by hold.
+    scale01 = relaxBreathEaseOutCubic(phaseLocal01);
   } else if (t < timing.inhaleMs + timing.holdMs) {
     phase = "hold";
     phaseLocal01 = (t - timing.inhaleMs) / timing.holdMs;
@@ -102,7 +120,7 @@ export function computeRelaxBreathFrame(
     phase = "exhale";
     const ex = t - timing.inhaleMs - timing.holdMs;
     phaseLocal01 = ex / timing.exhaleMs;
-    scale01 = 1 - relaxBreathSmootherstep(phaseLocal01);
+    scale01 = 1 - relaxBreathEaseInCubic(phaseLocal01);
   }
 
   let fishDtScale = 1;
@@ -126,15 +144,29 @@ export function computeRelaxBreathFrame(
   };
 }
 
-/** Visual scale range for the HUD disc (CSS transform). */
-export function relaxBreathDiscScaleFrom01(scale01: number): number {
-  const lo = 0.93;
-  const hi = 1.07;
+/** Radial ring group scale (CSS transform) — wider than the old disc for a clear breath. */
+export function relaxBreathRingScaleFrom01(scale01: number): number {
+  const lo = 0.78;
+  const hi = 1.12;
   return lo + scale01 * (hi - lo);
 }
 
-export function relaxBreathDiscOpacityFrom01(scale01: number): number {
-  const lo = 0.52;
+export type RelaxBreathRingVisualTheme = "day" | "night";
+
+/**
+ * Group opacity for the particle ring (applied to the HUD wrapper each rAF frame).
+ * Day uses a much higher range so darker bubbles read clearly on light UI.
+ */
+export function relaxBreathRingGroupOpacityFrom01(
+  scale01: number,
+  theme: RelaxBreathRingVisualTheme = "night",
+): number {
+  if (theme === "day") {
+    const lo = 0.9;
+    const hi = 1;
+    return lo + scale01 * (hi - lo);
+  }
+  const lo = 0.44;
   const hi = 0.78;
   return lo + scale01 * (hi - lo);
 }

@@ -2,6 +2,13 @@
 
 import { useRef, type MutableRefObject } from "react";
 import { useRelaxBreathing } from "@/src/hooks/use-relax-breathing";
+import RelaxBreathRing from "@/src/components/modes/RelaxBreathRing";
+import {
+  aquariumPoetryTitleColor,
+  relaxBreathGuideCircleStyle,
+  relaxBreathMistRadialGradient,
+  type AquariumPoetryTheme,
+} from "@/src/lib/aquarium-poetry-colors";
 import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 
 export type RelaxBreathingHudProps = {
@@ -10,36 +17,81 @@ export type RelaxBreathingHudProps = {
   ambientRef: MutableRefObject<RelaxBreathAmbientState>;
 };
 
+const phaseLayerClass =
+  "pointer-events-none absolute inset-0 flex items-center justify-center text-center font-sans text-[0.72rem] font-light lowercase tracking-[0.28em] transition-opacity duration-[550ms] ease-[cubic-bezier(0.33,0,0.2,1)] sm:text-[0.8rem]";
+
 /**
- * Minimal always-on breath cue for Relax mode: one soft disc, motion only.
+ * Always-on Relax breath: soft radial bubble ring + one quiet phase word (no numerals, no controls).
  */
 export default function RelaxBreathingHud({
   isNight,
   visible,
   ambientRef,
 }: RelaxBreathingHudProps) {
-  const discRef = useRef<HTMLDivElement>(null);
-  useRelaxBreathing(visible, { discRef, ambientRef });
+  const ringRef = useRef<HTMLDivElement>(null);
+  const phaseARef = useRef<HTMLSpanElement>(null);
+  const phaseBRef = useRef<HTMLSpanElement>(null);
+
+  useRelaxBreathing(visible, {
+    ringRef,
+    phaseLayer0Ref: phaseARef,
+    phaseLayer1Ref: phaseBRef,
+    ambientRef,
+    visualTheme: isNight ? "night" : "day",
+  });
 
   if (!visible) return null;
 
+  const theme: AquariumPoetryTheme = isNight ? "night" : "day";
+  const mist = relaxBreathMistRadialGradient(theme);
+  const phaseColor = aquariumPoetryTitleColor(theme);
+  const guideStyle = !isNight ? relaxBreathGuideCircleStyle("day") : undefined;
+
   return (
     <div className="pointer-events-none flex w-full flex-col items-center justify-center px-2">
-      <div
-        ref={discRef}
-        className="h-[min(44vw,12rem)] w-[min(44vw,12rem)] rounded-full sm:h-44 sm:w-44"
-        style={{
-          opacity: 0,
-          background: isNight
-            ? "radial-gradient(circle at 38% 32%, rgba(185,220,245,0.38) 0%, rgba(110,165,205,0.22) 46%, rgba(70,110,150,0.08) 72%, transparent 88%)"
-            : "radial-gradient(circle at 38% 32%, rgba(255,255,255,0.72) 0%, rgba(200,230,252,0.38) 48%, rgba(160,205,235,0.16) 76%, transparent 90%)",
-          boxShadow: isNight
-            ? "0 0 88px -4px rgba(140,200,235,0.28), inset 0 0 52px -10px rgba(210,235,255,0.14)"
-            : "0 0 72px -6px rgba(90,155,210,0.22), inset 0 0 48px -12px rgba(255,255,255,0.38)",
-          willChange: "transform, opacity",
-        }}
-        aria-hidden
-      />
+      <div className="relative flex h-[min(52vw,13.5rem)] w-[min(52vw,13.5rem)] items-center justify-center sm:h-56 sm:w-56">
+        <div
+          ref={ringRef}
+          className={`absolute inset-0 origin-center will-change-transform ${
+            isNight ? "blur-[0.2px]" : "blur-0"
+          }`}
+          style={{ opacity: 0 }}
+          aria-hidden
+        >
+          <div
+            className={`pointer-events-none absolute inset-[18%] rounded-full ${
+              isNight ? "opacity-95" : "opacity-100"
+            }`}
+            style={{ background: mist }}
+          />
+          {!isNight ? (
+            <div
+              className="pointer-events-none absolute left-1/2 top-1/2 h-[min(54vw,13.5rem)] w-[min(54vw,13.5rem)] -translate-x-1/2 -translate-y-1/2 rounded-full"
+              style={guideStyle}
+              aria-hidden
+            />
+          ) : null}
+          <RelaxBreathRing isNight={isNight} />
+        </div>
+
+        <div
+          className="relative z-1 flex h-9 w-[min(72%,10rem)] items-center justify-center sm:h-10"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span
+            ref={phaseARef}
+            className={phaseLayerClass}
+            style={{ opacity: 0, color: phaseColor }}
+          />
+          <span
+            ref={phaseBRef}
+            className={phaseLayerClass}
+            style={{ opacity: 0, color: phaseColor }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
