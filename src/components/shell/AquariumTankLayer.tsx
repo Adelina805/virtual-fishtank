@@ -3,6 +3,7 @@
 import { Dancing_Script } from "next/font/google";
 import dynamic from "next/dynamic";
 import { useLayoutEffect, useRef, type MutableRefObject } from "react";
+import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 import { MODE_TAGLINES } from "@/src/lib/mode-taglines";
 import {
   getAquariumPoetryLayout,
@@ -29,6 +30,7 @@ export type AquariumTankLayerProps = {
   tankMeasureRef: MutableRefObject<HTMLDivElement | null>;
   runtimeSettingsRef: MutableRefObject<AquariumRuntimeSettings>;
   feedModeRef: MutableRefObject<boolean>;
+  relaxBreathAmbientRef: MutableRefObject<RelaxBreathAmbientState>;
 };
 
 /** Full-viewport tank: LCP mirror, measure root, and canvas simulation. */
@@ -39,6 +41,7 @@ export default function AquariumTankLayer({
   tankMeasureRef,
   runtimeSettingsRef,
   feedModeRef,
+  relaxBreathAmbientRef,
 }: AquariumTankLayerProps) {
   const { mode } = useAppMode();
   const appModeRef = useRef(mode);
@@ -96,6 +99,7 @@ export default function AquariumTankLayer({
           feedModeRef={feedModeRef}
           poemFontFamily={poemFont.style.fontFamily}
           appModeRef={appModeRef}
+          relaxBreathAmbientRef={relaxBreathAmbientRef}
         />
       </div>
     </div>

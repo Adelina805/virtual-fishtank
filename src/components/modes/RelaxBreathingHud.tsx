@@ -1,84 +1,45 @@
 "use client";
 
-import {
-  RELAX_BREATH_PHASE_SEC,
-  useRelaxBreathing,
-} from "@/src/hooks/use-relax-breathing";
-import {
-  modeHudActionBtn,
-  modeHudMutedText,
-} from "@/src/components/modes/mode-ui-tokens";
+import { useRef, type MutableRefObject } from "react";
+import { useRelaxBreathing } from "@/src/hooks/use-relax-breathing";
+import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 
 export type RelaxBreathingHudProps = {
   isNight: boolean;
   visible: boolean;
+  ambientRef: MutableRefObject<RelaxBreathAmbientState>;
 };
 
+/**
+ * Minimal always-on breath cue for Relax mode: one soft disc, motion only.
+ */
 export default function RelaxBreathingHud({
   isNight,
   visible,
+  ambientRef,
 }: RelaxBreathingHudProps) {
-  const { active, setActive, secondsLeft, phaseLabel, discScale } =
-    useRelaxBreathing(visible);
+  const discRef = useRef<HTMLDivElement>(null);
+  useRelaxBreathing(visible, { discRef, ambientRef });
 
   if (!visible) return null;
 
-  const subtle = modeHudMutedText(isNight);
-
   return (
-    <div className="pointer-events-none flex w-full flex-col items-center px-2">
-      {!active ? (
-        <div className="pointer-events-auto">
-          <button
-            type="button"
-            className={modeHudActionBtn(isNight)}
-            onClick={() => setActive(true)}
-            aria-label="Start guided breathing"
-          >
-            Breathe
-          </button>
-        </div>
-      ) : (
-        <div className="flex flex-col items-center gap-3">
-          <p
-            className={`pointer-events-none m-0 text-center text-[0.65rem] font-medium uppercase tracking-[0.2em] ${subtle}`}
-          >
-            {phaseLabel}
-          </p>
-          <div
-            className={
-              isNight
-                ? "pointer-events-none flex h-36 w-36 items-center justify-center rounded-full border border-white/[0.14] bg-sky-400/[0.08] shadow-[0_0_52px_-10px_rgba(125,211,252,0.38)]"
-                : "pointer-events-none flex h-36 w-36 items-center justify-center rounded-full border border-sky-900/14 bg-sky-100/45 shadow-[0_0_44px_-12px_rgba(14,165,233,0.28)]"
-            }
-            style={{
-              transform: `scale(${discScale})`,
-              transition: `transform ${RELAX_BREATH_PHASE_SEC}s cubic-bezier(0.45, 0, 0.55, 1)`,
-            }}
-          >
-            <span
-              className={
-                isNight
-                  ? "text-3xl font-light tabular-nums text-white/92"
-                  : "text-3xl font-light tabular-nums text-slate-900"
-              }
-              aria-live="polite"
-            >
-              {secondsLeft}
-            </span>
-          </div>
-          <div className="pointer-events-auto pt-1">
-            <button
-              type="button"
-              className={modeHudActionBtn(isNight)}
-              onClick={() => setActive(false)}
-              aria-label="Stop guided breathing"
-            >
-              Stop
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="pointer-events-none flex w-full flex-col items-center justify-center px-2">
+      <div
+        ref={discRef}
+        className="h-[min(44vw,12rem)] w-[min(44vw,12rem)] rounded-full sm:h-44 sm:w-44"
+        style={{
+          opacity: 0,
+          background: isNight
+            ? "radial-gradient(circle at 38% 32%, rgba(185,220,245,0.38) 0%, rgba(110,165,205,0.22) 46%, rgba(70,110,150,0.08) 72%, transparent 88%)"
+            : "radial-gradient(circle at 38% 32%, rgba(255,255,255,0.72) 0%, rgba(200,230,252,0.38) 48%, rgba(160,205,235,0.16) 76%, transparent 90%)",
+          boxShadow: isNight
+            ? "0 0 88px -4px rgba(140,200,235,0.28), inset 0 0 52px -10px rgba(210,235,255,0.14)"
+            : "0 0 72px -6px rgba(90,155,210,0.22), inset 0 0 48px -12px rgba(255,255,255,0.38)",
+          willChange: "transform, opacity",
+        }}
+        aria-hidden
+      />
     </div>
   );
 }

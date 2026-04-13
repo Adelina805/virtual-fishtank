@@ -14,6 +14,10 @@ import {
   MAX_FISH_COUNT,
   type AquariumRuntimeSettings,
 } from "@/src/lib/aquarium-runtime";
+import {
+  RELAX_BREATH_AMBIENT_IDLE,
+  type RelaxBreathAmbientState,
+} from "@/src/lib/relax-breathing-cycle";
 
 export default function HomeAquariumExperience() {
   const [isNight, setIsNight] = useState(true);
@@ -31,6 +35,9 @@ export default function HomeAquariumExperience() {
   });
 
   const feedModeRef = useRef(false);
+  const relaxBreathAmbientRef = useRef<RelaxBreathAmbientState>(
+    RELAX_BREATH_AMBIENT_IDLE,
+  );
 
   useLayoutEffect(() => {
     runtimeSettingsRef.current.ambience = isNight ? "night" : "day";
@@ -94,6 +101,7 @@ export default function HomeAquariumExperience() {
           isNight={isNight}
           sceneVisible={sceneVisible}
           controlsVisible={controlsVisible}
+          relaxBreathAmbientRef={relaxBreathAmbientRef}
           tankLayer={
             <AquariumTankLayer
               isNight={isNight}
@@ -102,6 +110,7 @@ export default function HomeAquariumExperience() {
               tankMeasureRef={tankMeasureRef}
               runtimeSettingsRef={runtimeSettingsRef}
               feedModeRef={feedModeRef}
+              relaxBreathAmbientRef={relaxBreathAmbientRef}
             />
           }
           aquariumControls={

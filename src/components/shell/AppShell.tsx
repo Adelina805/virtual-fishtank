@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { MutableRefObject, ReactNode } from "react";
+import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 import ModeToggle from "@/src/components/mode/ModeToggle";
 import FocusModeHud from "@/src/components/modes/FocusModeHud";
 import RelaxBreathingHud from "@/src/components/modes/RelaxBreathingHud";
@@ -15,6 +16,8 @@ export type AppShellProps = {
   tankLayer: ReactNode;
   /** Top-right aquarium controls (fish, feed, day/night). */
   aquariumControls: ReactNode;
+  /** Shared Relax breath state for canvas sync (fish / light). */
+  relaxBreathAmbientRef: MutableRefObject<RelaxBreathAmbientState>;
 };
 
 /**
@@ -27,6 +30,7 @@ export default function AppShell({
   controlsVisible,
   tankLayer,
   aquariumControls,
+  relaxBreathAmbientRef,
 }: AppShellProps) {
   const { mode } = useAppMode();
   const tagline = MODE_TAGLINES[mode];
@@ -56,7 +60,11 @@ export default function AppShell({
             }`}
           >
             {mode === "relax" ? (
-              <RelaxBreathingHud isNight={isNight} visible={sceneVisible} />
+              <RelaxBreathingHud
+                isNight={isNight}
+                visible={sceneVisible}
+                ambientRef={relaxBreathAmbientRef}
+              />
             ) : null}
             {mode === "focus" ? <FocusModeHud isNight={isNight} /> : null}
           </div>

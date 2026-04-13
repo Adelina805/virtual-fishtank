@@ -8,6 +8,7 @@ import {
   type MutableRefObject,
 } from "react";
 import type { AppMode } from "@/src/lib/app-mode";
+import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 import { MODE_TAGLINES } from "@/src/lib/mode-taglines";
 import {
   DEFAULT_FISH_COUNT,
@@ -1676,6 +1677,7 @@ function drawUnderwaterBackground(
   timeSec: number,
   sim: AquariumCanvasSimulation,
   openingPrimaryT: number,
+  relaxLightOverlayAlpha: number,
 ) {
   const cache = ensureAquariumPaintCache(ctx, width, height, ambience, sim);
 
@@ -1714,6 +1716,17 @@ function drawUnderwaterBackground(
       timeSec,
       cache.nightBioGrads!,
     );
+  }
+
+  if (relaxLightOverlayAlpha > 1e-4) {
+    ctx.save();
+    ctx.globalAlpha = relaxLightOverlayAlpha;
+    ctx.fillStyle =
+      ambience === "day"
+        ? "rgba(235, 248, 255, 1)"
+        : "rgba(200, 228, 248, 1)";
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
   }
 }
 
@@ -1961,6 +1974,8 @@ type AquariumCanvasProps = {
   poemFontFamily?: string;
   /** Latest app mode — read each frame so the caption updates without canvas remount. */
   appModeRef: MutableRefObject<AppMode>;
+  /** Relax-mode breath driver (HUD) — read each frame for subtle fish + light sync. */
+  relaxBreathAmbientRef: MutableRefObject<RelaxBreathAmbientState>;
 };
 
 /** All per-tank simulation data — lives outside React state; owned by the RAF loop + one ref. */
@@ -2028,6 +2043,7 @@ function AquariumCanvasComponent({
   fishCount = DEFAULT_FISH_COUNT,
   poemFontFamily,
   appModeRef,
+  relaxBreathAmbientRef,
 }: AquariumCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -2275,6 +2291,16 @@ function AquariumCanvasComponent({
       const rs = runtimeSettingsRef.current;
       const n = clampFishCount(rs.fishCount);
       const ambienceNow = rs.ambience;
+      const modeNow = appModeRef.current;
+      const breathAmbient = relaxBreathAmbientRef.current;
+      const fishDt =
+        modeNow === "relax" && breathAmbient.active
+          ? dt * breathAmbient.fishDtScale
+          : dt;
+      const relaxLightOverlay =
+        modeNow === "relax" && breathAmbient.active
+          ? breathAmbient.lightOverlayAlpha
+          : 0;
 
       const backingWDelta = Math.abs(backingW - sim.lastBackingW);
       const backingHDelta = Math.abs(backingH - sim.lastBackingH);
@@ -2324,7 +2350,7 @@ function AquariumCanvasComponent({
         fish,
         cssW,
         cssH,
-        dt,
+        fishDt,
         pointerCanvasRef.current,
         foodSim.pellets,
         n,
@@ -2365,6 +2391,7 @@ function AquariumCanvasComponent({
         timeSec,
         sim,
         openingPrimaryT,
+        relaxLightOverlay,
       );
       ctx.save();
       ctx.globalAlpha = 0.08 + particlesT * 0.72;
@@ -2372,7 +2399,6 @@ function AquariumCanvasComponent({
       drawDriftParticles(ctx, buf, ambienceNow);
       ctx.restore();
       const fam = poemFontFamilyRef.current;
-      const modeNow = appModeRef.current;
       const taglineNow = MODE_TAGLINES[modeNow];
       if ((fam && poemFontReadyRef.current) || !fam) {
         drawAquariumPoetryCached(
@@ -2452,7 +2478,13 @@ function AquariumCanvasComponent({
       canvas.removeEventListener("pointercancel", onPointerCancel);
       simulationRef.current = null;
     };
-  }, [pointerCanvasRef, runtimeSettingsRef, feedModeRef, appModeRef]);
+  }, [
+    pointerCanvasRef,
+    runtimeSettingsRef,
+    feedModeRef,
+    appModeRef,
+    relaxBreathAmbientRef,
+  ]);
 
   return (
     <div ref={containerRef} className="h-full w-full min-h-0">
