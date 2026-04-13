@@ -49,6 +49,7 @@ export default function HomeAquariumExperience() {
 
   useEffect(() => {
     const stored =
+      window.localStorage.getItem("aquacalma-ambience") ??
       window.localStorage.getItem("vf-ambience") ??
       window.localStorage.getItem("theme");
     if (stored === "day" || stored === "light") {
@@ -64,7 +65,7 @@ export default function HomeAquariumExperience() {
 
   useEffect(() => {
     const value = isNight ? "night" : "day";
-    window.localStorage.setItem("vf-ambience", value);
+    window.localStorage.setItem("aquacalma-ambience", value);
     // Keep compatibility with common theme keys used by other UI parts.
     window.localStorage.setItem("theme", isNight ? "dark" : "light");
   }, [isNight]);
@@ -100,8 +101,9 @@ export default function HomeAquariumExperience() {
       }
     >
       <h1 className="sr-only">
-        Virtual Fishtank — a soothing, interactive aquarium with calm motion
-        and gentle taps, comfortable on phones and desktops.
+        Aquacalma — a soothing, interactive aquarium with gentle motion and
+        responsive life, a space to rest, return, and breathe. Comfortable on
+        phones and desktops.
       </h1>
 
       <div ref={tankMeasureRef} className="absolute inset-0 z-0 min-h-0">
@@ -125,7 +127,7 @@ export default function HomeAquariumExperience() {
                     : "rgba(18, 50, 70, 0.72)",
                 }}
               >
-                Virtual Fishtank
+                Aquacalma
               </p>
               <div
                 className="m-0"
@@ -175,7 +177,7 @@ export default function HomeAquariumExperience() {
             ? "text-slate-400 hover:text-rose-500"
             : "text-slate-400 hover:text-rose-500"
         }`}
-        aria-label="Virtual Fishtank on GitHub"
+        aria-label="Aquacalma on GitHub"
       >
         <span aria-hidden className="select-none">
           &#9829;

@@ -1879,7 +1879,7 @@ function drawAquariumPoetry(
   detailsAlpha: number,
 ) {
   const cx = w * 0.5;
-  const title = "Virtual Fishtank";
+  const title = "Aquacalma";
   const { titleSize, lineSize, lineHeight, yTitle } = getAquariumPoetryLayout(
     w,
     h,

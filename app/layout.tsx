@@ -18,42 +18,51 @@ function getMetadataBase(): URL {
 }
 
 const siteTitle =
-  "Virtual Fishtank — A Calm, Living Aquarium in Your Browser";
+  "Aquacalma | Interactive Aquarium for Focus, Calm, and Play";
 const siteDescription =
-  "Drift through glass-clear water painted with slow light: layered fish glide past, your cursor sends soft ripples across the surface, and the whole tank breathes with you. A quiet, visually rich pocket of ocean for focus, rest, or a gentler moment between tasks.";
+  "Aquacalma is an interactive digital aquarium designed for calm, focus, and play. Guide your breathing, grow the environment through sustained attention, and interact with responsive fish in a soothing digital ecosystem.";
+const socialDescription =
+  "Aquacalma is a responsive digital aquarium exploring calm, attention, and play through guided breathing, evolving focus sessions, and interactive fish behavior.";
 
 export const metadata: Metadata = {
   metadataBase: getMetadataBase(),
-  applicationName: "Virtual Fishtank",
+  applicationName: "Aquacalma",
   title: {
     default: siteTitle,
-    template: "%s | Virtual Fishtank",
+    template: "%s | Aquacalma",
   },
   description: siteDescription,
   keywords: [
-    "virtual fishtank",
+    "Aquacalma",
     "interactive aquarium",
-    "browser aquarium",
-    "relaxing visuals",
-    "cursor ripples",
-    "layered fish",
-    "mobile-friendly",
-    "canvas aquarium",
+    "digital calm",
+    "focus timer",
+    "breathing exercise",
+    "generative art",
+    "interactive art",
+    "calming website",
+    "digital ecosystem",
+    "study tool",
+    "soothing experience",
+    "fish simulation",
+    "electronic literature",
+    "creative coding",
+    "wellness design",
   ],
-  authors: [{ name: "Virtual Fishtank" }],
-  creator: "Virtual Fishtank",
+  authors: [{ name: "Adelina Martinez" }],
+  creator: "Adelina Martinez",
   openGraph: {
     title: siteTitle,
-    description: siteDescription,
+    description: socialDescription,
     type: "website",
     url: "/",
-    siteName: "Virtual Fishtank",
+    siteName: "Aquacalma",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     title: siteTitle,
-    description: siteDescription,
+    description: socialDescription,
   },
   alternates: {
     canonical: "/",

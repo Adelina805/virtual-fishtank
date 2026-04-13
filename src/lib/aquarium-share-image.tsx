@@ -74,7 +74,7 @@ export function createAquariumShareImageResponse() {
             position: "relative",
           }}
         >
-          Browser aquarium
+          Interactive digital aquarium
         </p>
         <h1
           style={{
@@ -87,7 +87,7 @@ export function createAquariumShareImageResponse() {
             position: "relative",
           }}
         >
-          Virtual Fishtank
+          Aquacalma
         </h1>
         <p
           style={{
@@ -99,8 +99,8 @@ export function createAquariumShareImageResponse() {
             position: "relative",
           }}
         >
-          Silken light, drifting schools, and glass-soft ripples—your own calm
-          slice of the sea, ready whenever you need a slower breath.
+          Calm, focus, and play—guided breathing, evolving attention, and fish
+          that respond to your presence in a gentle digital ecosystem.
         </p>
       </div>
     ),

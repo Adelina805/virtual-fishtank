@@ -6,7 +6,7 @@ Inspired by the quiet presence of aquariums, the project reimagines a familiar s
 
 Aquacalma is structured around three modes: Relax, Focus, and Play. In Relax mode, guided breathing transforms the environment into a soft, synchronized experience, where subtle motion and light support moments of stillness. In Focus mode, sustained attention gradually grows the environment—new life, movement, and visual richness emerge the longer the user remains present. In Play mode, users can freely interact with the system, feeding fish and influencing their behavior.
 
-At its core, Aquacalma explores how digital spaces can become restorative rather than overwhelming. User presence directly influences the ecosystem, reinforcing the idea that stillness and attention can create life.
+At its core, Aquacalma explores how digital spaces can become restorative rather than overwhelming. User presence directly influences the ecosystem, reinforcing the idea that stillness and attention create life.
 
 ## Personal Statement
 
@@ -20,7 +20,7 @@ This project is an attempt to translate that feeling into a digital form. Aquaca
 
 ## Stack
 
-- [Next.js](https://nextjs.org/)
-- [React](https://react.dev/)
-- [TypeScript](https://www.typescriptlang.org/)
-- [Tailwind CSS](https://tailwindcss.com/)
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS

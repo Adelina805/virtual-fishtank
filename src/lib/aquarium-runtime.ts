@@ -18,8 +18,8 @@ export type AquariumRuntimeSettings = {
 /** Same strings as canvas poetry (DOM LCP mirror + draw). */
 export const AQUARIUM_POEM_TAGLINES = [
   "A soothing, interactive aquarium",
-  "with calm motion, gentle taps,",
-  "and a quiet home on palm or desk.",
+  "with gentle motion and responsive life,",
+  "a space to rest, return, and breathe.",
 ] as const;
 
 /** Sizing and vertical placement shared by `drawAquariumPoetry` and the DOM LCP mirror. */
