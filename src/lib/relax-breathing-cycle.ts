@@ -47,9 +47,9 @@ export type RelaxBreathRadiusConfig = {
 };
 
 export type RelaxBreathEasingConfig = {
-  /** Inhale: ease-out cubic (gentle bloom). */
+  /** Inhale progression (0..1). */
   inhale: (t01: number) => number;
-  /** Exhale: stronger inward easing for legibility. */
+  /** Exhale progression (0..1). */
   exhale: (t01: number) => number;
 };
 
@@ -71,8 +71,9 @@ export const DEFAULT_RELAX_BREATH_CONFIG: RelaxBreathCycleConfig = {
     restMs: RELAX_BREATH_REST_MS,
   },
   scale: {
-    inhaleStart: 0.84,
-    inhalePeak: 1.16,
+    // Match exhale end for a continuous loop without start-of-inhale catch-up.
+    inhaleStart: 0.74,
+    inhalePeak: 1.1,
     exhaleEnd: 0.74,
   },
   // Keep subtle: day/night theme still modulates through `visualTheme` in the hook.
@@ -82,13 +83,15 @@ export const DEFAULT_RELAX_BREATH_CONFIG: RelaxBreathCycleConfig = {
     rest: 0.0,
   },
   radius: {
-    inhaleStart: 1.0,
+    // Match exhale end so rest -> inhale has no radius snap.
+    inhaleStart: 0.9,
     inhalePeak: 1.06,
     exhaleEnd: 0.9,
   },
   easing: {
-    inhale: relaxBreathEaseGentleInhale,
-    exhale: relaxBreathEaseInOutInward,
+    // Keep ring motion close to constant-speed across inhale/exhale.
+    inhale: relaxBreathEaseLinear,
+    exhale: relaxBreathEaseLinear,
   },
   labelLeadMs: 0,
 };
@@ -196,6 +199,11 @@ export function relaxBreathEaseInOutInward(t: number): number {
   return s ** 1.35;
 }
 
+/** Linear progression for steady, metronomic breath pacing. */
+export function relaxBreathEaseLinear(t: number): number {
+  return clamp01(t);
+}
+
 function lerp(a: number, b: number, t01: number): number {
   return a + (b - a) * clamp01(t01);
 }
@@ -238,9 +246,7 @@ export function computeRelaxBreathFrame(
     phase = "inhale";
     phaseLocal01 = t / durations.inhaleMs;
     const e = easing.inhale(phaseLocal01);
-    // Blend from rest -> inhale over a short window to avoid a visible cycle-wrap jump.
-    const inhaleEntryBlend = relaxBreathSmoothstep(clamp01(phaseLocal01 / 0.38));
-    const inhaleScale = lerp(scale.inhaleStart, scale.inhalePeak, e);
+    ringScale = lerp(scale.inhaleStart, scale.inhalePeak, e);
     const inhaleOpacity = lerp(
       opacity.inhaleStart,
       opacity.inhalePeak,
@@ -251,9 +257,8 @@ export function computeRelaxBreathFrame(
       radius.inhalePeak,
       relaxBreathSmootherstep(phaseLocal01),
     );
-    ringScale = lerp(scale.exhaleEnd, inhaleScale, inhaleEntryBlend);
-    ringOpacity = lerp(opacity.rest, inhaleOpacity, inhaleEntryBlend);
-    ringRadiusMult = lerp(radius.exhaleEnd, inhaleRadius, inhaleEntryBlend);
+    ringOpacity = inhaleOpacity;
+    ringRadiusMult = inhaleRadius;
     drift01 = easeInOutGate01(phaseLocal01, 0.22, 0.18);
   } else if (t < durations.inhaleMs + durations.holdMs) {
     phase = "hold";
