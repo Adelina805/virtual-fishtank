@@ -601,6 +601,12 @@ function assignFoodClaims(
  * Per fish each frame: integrate → clamp Y → update facing → wrap X → (if seeking) bite overlap
  * via `mouthPelletBiteCirclesOverlap` vs pellet position after `stepFood`.
  */
+/** Relax-mode-only; values are pre-smoothed in the canvas RAF. */
+type RelaxBreathFishMod = {
+  speedMul: number;
+  centerDrift01: number;
+};
+
 function stepFish(
   fish: FishSchool,
   w: number,
@@ -610,6 +616,7 @@ function stepFish(
   food: FoodPellet[],
   count: number,
   timeSec: number,
+  relaxFish?: RelaxBreathFishMod,
 ) {
   const margin = 40;
   const top = h * 0.14;
@@ -651,6 +658,8 @@ function stepFish(
   const influenceRSq = influenceR * influenceR;
   const pointerActive = pointer.inCanvas && influenceR > 1;
   const influenceSpan = Math.max(1e-3, influenceR - personal);
+  const breathSpeedMul = relaxFish?.speedMul ?? 1;
+  const breathCenterDrift = relaxFish?.centerDrift01 ?? 0;
 
   for (let i = 0; i < count; i++) {
     const st = fish.foodState[i]!;
@@ -667,8 +676,11 @@ function stepFish(
       fish.vyOff[i] *= Math.max(0, 1 - 5.5 * dt);
       const swimMul = 1 + fish.speedBoost[i] * 0.35;
       const vx = fish.speed[i] * swimMul * fish.dir[i] * 0.22;
-      fish.x[i] += vx * dt;
-      fish.y[i] = Math.min(bottom, Math.max(top, fish.y[i] + fish.vyOff[i] * 0.2 * dt));
+      fish.x[i] += vx * breathSpeedMul * dt;
+      fish.y[i] = Math.min(
+        bottom,
+        Math.max(top, fish.y[i] + fish.vyOff[i] * 0.2 * breathSpeedMul * dt),
+      );
       if (fish.foodPhaseTimer[i] <= 0) {
         fish.foodState[i] = FISH_FS_RESUME;
         fish.foodPhaseTimer[i] = FISH_RESUME_BLEND_SEC;
@@ -822,6 +834,24 @@ function stepFish(
       targetVy = pointerVy;
     }
 
+    if (
+      breathCenterDrift > 1e-6 &&
+      !seeking &&
+      st !== FISH_FS_EAT
+    ) {
+      const midY = (top + bottom) * 0.5;
+      let dx = halfW - fish.x[i]!;
+      if (dx > halfW) dx -= w;
+      else if (dx < -halfW) dx += w;
+      const dy = midY - fish.y[i]!;
+      const distSq = dx * dx + dy * dy + 2800;
+      const invDist = 1 / Math.sqrt(distSq);
+      const pointerDim = pointerActive ? 0.35 : 1;
+      const bias = breathCenterDrift * maxSteer * 0.95 * pointerDim;
+      targetVx += dx * invDist * bias;
+      targetVy += dy * invDist * bias;
+    }
+
     const fr =
       seeking ? followRateSeek : followRateWander * (1 - 0.55 * resumeBlend);
     fish.vxOff[i] += (targetVx - fish.vxOff[i]) * fr;
@@ -864,8 +894,8 @@ function stepFish(
       vy = fish.vyOff[i]!;
     }
 
-    fish.x[i] += vx * dt;
-    fish.y[i] += vy * dt;
+    fish.x[i] += vx * breathSpeedMul * dt;
+    fish.y[i] += vy * breathSpeedMul * dt;
     fish.y[i] = Math.min(bottom, Math.max(top, fish.y[i]));
 
     const horizForFacing = seeking ? vx : fish.speed[i] * swimMul * fish.dir[i];
@@ -2004,6 +2034,10 @@ type AquariumCanvasSimulation = {
   paint: AquariumPaintCache | null;
   /** Raster cache for poetry text after opening reveal; cleared on resize / ambience / font. */
   poetryRaster: PoetryRasterCache | null;
+  /** Eased toward `RelaxBreathAmbientState` each frame to avoid RAF desync jitter. */
+  relaxFishSpeedMulSmoothed: number;
+  relaxFishCenterDriftSmoothed: number;
+  relaxLightOverlaySmoothed: number;
 };
 
 // In React dev, Strict Mode intentionally mounts/unmounts components to surface unsafe lifecycles.
@@ -2026,6 +2060,9 @@ function createAquariumSimulation(): AquariumCanvasSimulation {
     lastAppliedFishCount: 0,
     paint: null,
     poetryRaster: null,
+    relaxFishSpeedMulSmoothed: 1,
+    relaxFishCenterDriftSmoothed: 0,
+    relaxLightOverlaySmoothed: 0,
   };
 }
 
@@ -2116,6 +2153,9 @@ function AquariumCanvasComponent({
     sim.lastNow = 0;
     sim.paint = null;
     sim.poetryRaster = null;
+    sim.relaxFishSpeedMulSmoothed = 1;
+    sim.relaxFishCenterDriftSmoothed = 0;
+    sim.relaxLightOverlaySmoothed = 0;
 
     const { buf, fish, pointerBubbles, pointerSpawn } = sim;
     const foodSim = sim.food;
@@ -2294,14 +2334,25 @@ function AquariumCanvasComponent({
       const ambienceNow = rs.ambience;
       const modeNow = appModeRef.current;
       const breathAmbient = relaxBreathAmbientRef.current;
-      const fishDt =
-        modeNow === "relax" && breathAmbient.active
-          ? dt * breathAmbient.fishDtScale
-          : dt;
-      const relaxLightOverlay =
-        modeNow === "relax" && breathAmbient.active
-          ? breathAmbient.lightOverlayAlpha
-          : 0;
+      const relaxBreathLive = modeNow === "relax" && breathAmbient.active;
+      const relaxSmooth = Math.min(1, 15 * dt);
+      const targetFishSm = relaxBreathLive ? breathAmbient.fishSpeedMul : 1;
+      const targetFishDrift = relaxBreathLive ? breathAmbient.fishCenterDrift01 : 0;
+      const targetLight = relaxBreathLive ? breathAmbient.lightOverlayAlpha : 0;
+      sim.relaxFishSpeedMulSmoothed +=
+        (targetFishSm - sim.relaxFishSpeedMulSmoothed) * relaxSmooth;
+      sim.relaxFishCenterDriftSmoothed +=
+        (targetFishDrift - sim.relaxFishCenterDriftSmoothed) * relaxSmooth;
+      sim.relaxLightOverlaySmoothed +=
+        (targetLight - sim.relaxLightOverlaySmoothed) * relaxSmooth;
+
+      const relaxFishMod: RelaxBreathFishMod | undefined = relaxBreathLive
+        ? {
+            speedMul: sim.relaxFishSpeedMulSmoothed,
+            centerDrift01: sim.relaxFishCenterDriftSmoothed,
+          }
+        : undefined;
+      const relaxLightOverlay = sim.relaxLightOverlaySmoothed;
 
       const backingWDelta = Math.abs(backingW - sim.lastBackingW);
       const backingHDelta = Math.abs(backingH - sim.lastBackingH);
@@ -2351,11 +2402,12 @@ function AquariumCanvasComponent({
         fish,
         cssW,
         cssH,
-        fishDt,
+        dt,
         pointerCanvasRef.current,
         foodSim.pellets,
         n,
         timeSec,
+        relaxFishMod,
       );
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);

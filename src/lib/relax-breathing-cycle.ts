@@ -14,6 +14,9 @@ export const RELAX_BREATH_CYCLE_MS =
   RELAX_BREATH_EXHALE_MS +
   RELAX_BREATH_REST_MS;
 
+/** Fish wander multiplier during breath hold (near 0 = nearly motionless). */
+export const RELAX_FISH_HOLD_SPEED_MUL = 0.5;
+
 export type RelaxBreathPhase = "inhale" | "hold" | "exhale" | "rest";
 
 export type RelaxBreathCycleDurations = {
@@ -101,8 +104,15 @@ export type RelaxBreathAmbientState = {
   active: boolean;
   /** 0 = empty / small visual, 1 = full / large visual. */
   scale01: number;
-  /** Multiplier applied only to fish integration `dt` in Relax mode. */
-  fishDtScale: number;
+  /**
+   * Wander / swim speed multiplier in Relax (~0.9 at low breath … ~1.05 at full).
+   * Canvas applies with smoothing; does not replace simulation `dt` (avoids timer jitter).
+   */
+  fishSpeedMul: number;
+  /**
+   * Inhale-only 0…1 weight for a gentle bias toward tank center (no pull on hold/exhale/rest).
+   */
+  fishCenterDrift01: number;
   /** Subtle full-screen light wash alpha (applied in canvas). */
   lightOverlayAlpha: number;
 };
@@ -110,7 +120,8 @@ export type RelaxBreathAmbientState = {
 export const RELAX_BREATH_AMBIENT_IDLE: RelaxBreathAmbientState = {
   active: false,
   scale01: 0,
-  fishDtScale: 1,
+  fishSpeedMul: 1,
+  fishCenterDrift01: 0,
   lightOverlayAlpha: 0,
 };
 
@@ -127,7 +138,9 @@ export type RelaxBreathFrame = {
   ringRadiusMult: number;
   /** Normalized breath fullness 0…1 for ambient integration. */
   scale01: number;
-  fishDtScale: number;
+  fishSpeedMul: number;
+  /** Same gate as ring inhale drift; only inhale contributes to fish center bias. */
+  fishCenterDrift01: number;
   lightOverlayAlpha: number;
   /** Linear 0…1 position in the full cycle (for debugging / future use). */
   cyclePosition01: number;
@@ -287,17 +300,15 @@ export function computeRelaxBreathFrame(
     drift01 = 0;
   }
 
-  let fishDtScale = 1;
-  if (phase === "inhale") {
-    fishDtScale = 0.92 + 0.08 * relaxBreathSmoothstep(phaseLocal01);
-  } else if (phase === "exhale") {
-    fishDtScale = 1 - 0.09 * relaxBreathSmoothstep(phaseLocal01);
-  }
-
   const scale01 = toFullness01(ringScale, scale.exhaleEnd, scale.inhalePeak);
 
-  // Peak softly with breath fullness; keep very subtle (canvas multiplies again by mode).
-  const lightOverlayAlpha = scale01 * 0.022;
+  // Inhale / exhale / rest: subtle wander speed (~0.9…1.05). Hold: almost still.
+  const fishSpeedMul =
+    phase === "hold" ? RELAX_FISH_HOLD_SPEED_MUL : 0.9 + scale01 * 0.15;
+  const fishCenterDrift01 = phase === "inhale" ? drift01 : 0;
+
+  // Peak softly with breath fullness; keep very subtle (canvas may smooth + mode-gate).
+  const lightOverlayAlpha = scale01 * 0.028;
 
   const labelT = (elapsedMs + labelLeadMs) % cycleMs;
   let labelPhase: RelaxBreathPhase;
@@ -314,7 +325,8 @@ export function computeRelaxBreathFrame(
     ringOpacity,
     ringRadiusMult,
     scale01,
-    fishDtScale,
+    fishSpeedMul,
+    fishCenterDrift01,
     lightOverlayAlpha,
     cyclePosition01,
     drift01,

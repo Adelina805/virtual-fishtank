@@ -126,6 +126,13 @@ export function useRelaxBreathing(
     const applyIdleVisual = () => {
       const f = computeRelaxBreathFrame(0, configRef.current);
       applyRingVisual(f, 0);
+      ambientRef.current = {
+        active: true,
+        scale01: f.scale01,
+        fishSpeedMul: f.fishSpeedMul,
+        fishCenterDrift01: f.fishCenterDrift01,
+        lightOverlayAlpha: f.lightOverlayAlpha,
+      };
       activeLayerRef.current = 0;
       lastPhaseRef.current = null;
       setPhaseLayers(f.labelPhase, 0);
@@ -142,7 +149,8 @@ export function useRelaxBreathing(
       ambientRef.current = {
         active: true,
         scale01: frame.scale01,
-        fishDtScale: frame.fishDtScale,
+        fishSpeedMul: frame.fishSpeedMul,
+        fishCenterDrift01: frame.fishCenterDrift01,
         lightOverlayAlpha: frame.lightOverlayAlpha,
       };
 
