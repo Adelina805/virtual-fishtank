@@ -19,8 +19,8 @@ const FOCUS_GROWTH_BLEND_MS = {
   rare: 240_000,
 } as const;
 /**
- * Fish growth keeps building after stage 3: roughly +1 fish / focused minute
- * after the 5-minute threshold, capped so default 10 can reach 100.
+ * Fish growth is linear from timer start: exactly +1 fish / focused minute,
+ * capped so default 10 can reach 100.
  */
 const FOCUS_GROWTH_FISH_MS_PER_FISH = 60_000;
 const FOCUS_GROWTH_MAX_FISH_BONUS = 90;
@@ -62,10 +62,7 @@ export function computeEnvironmentGrowthState(
   const safeElapsedMs = Math.max(0, elapsedMs);
   const stage = computeEnvironmentGrowthStage(safeElapsedMs);
 
-  const fishGrowthElapsedMs = Math.max(
-    0,
-    safeElapsedMs - FOCUS_GROWTH_THRESHOLDS_MS.stage1,
-  );
+  const fishGrowthElapsedMs = safeElapsedMs;
   const fishBonusCount = Math.min(
     FOCUS_GROWTH_MAX_FISH_BONUS,
     Math.floor(fishGrowthElapsedMs / FOCUS_GROWTH_FISH_MS_PER_FISH),
