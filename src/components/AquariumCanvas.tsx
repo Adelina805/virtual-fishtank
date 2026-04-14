@@ -2109,7 +2109,6 @@ type AquariumCanvasSimulation = {
   lastBackingH: number;
   lastNow: number;
   lastAppliedFishCount: number;
-  growthFishCountSmoothed: number;
   /** Cleared when the backing store is resized so gradients stay valid for the context. */
   paint: AquariumPaintCache | null;
   /** Raster cache for poetry text after opening reveal; cleared on resize / ambience / font. */
@@ -2138,7 +2137,6 @@ function createAquariumSimulation(): AquariumCanvasSimulation {
     lastBackingH: -1,
     lastNow: 0,
     lastAppliedFishCount: 0,
-    growthFishCountSmoothed: 0,
     paint: null,
     poetryRaster: null,
     relaxFishSpeedMulSmoothed: 1,
@@ -2176,6 +2174,7 @@ function AquariumCanvasComponent({
   const fallbackRuntimeRef = useRef<AquariumRuntimeSettings>({
     ambience,
     fishCount: clampFishCount(fishCount),
+    fishBonusBaseline: 0,
     environmentGrowth: DEFAULT_ENVIRONMENT_GROWTH_STATE,
   });
   const runtimeSettingsRef =
@@ -2185,6 +2184,7 @@ function AquariumCanvasComponent({
     if (runtimeSettingsRefProp) return;
     fallbackRuntimeRef.current.ambience = ambience;
     fallbackRuntimeRef.current.fishCount = clampFishCount(fishCount);
+    fallbackRuntimeRef.current.fishBonusBaseline = 0;
     fallbackRuntimeRef.current.environmentGrowth = DEFAULT_ENVIRONMENT_GROWTH_STATE;
   }, [runtimeSettingsRefProp, ambience, fishCount]);
 
@@ -2239,7 +2239,6 @@ function AquariumCanvasComponent({
     sim.relaxFishSpeedMulSmoothed = 1;
     sim.relaxFishCenterDriftSmoothed = 0;
     sim.relaxLightOverlaySmoothed = 0;
-    sim.growthFishCountSmoothed = 0;
 
     const { buf, fish, pointerBubbles, pointerSpawn } = sim;
     const foodSim = sim.food;
@@ -2416,16 +2415,12 @@ function AquariumCanvasComponent({
       const rs = runtimeSettingsRef.current;
       const growthNow =
         rs.environmentGrowth ?? DEFAULT_ENVIRONMENT_GROWTH_STATE;
-      const targetFishCount = clampFishCount(rs.fishCount + growthNow.fishBonusCount);
-      if (sim.growthFishCountSmoothed <= 0) {
-        sim.growthFishCountSmoothed = targetFishCount;
-      } else {
-        const deltaFish = targetFishCount - sim.growthFishCountSmoothed;
-        const fishRampPerSec = deltaFish >= 0 ? 0.55 : 1.4;
-        const fishStep = Math.min(Math.abs(deltaFish), fishRampPerSec * dt);
-        sim.growthFishCountSmoothed += Math.sign(deltaFish) * fishStep;
-      }
-      const n = clampFishCount(Math.round(sim.growthFishCountSmoothed));
+      const netFishBonus = Math.max(
+        0,
+        growthNow.fishBonusCount - (rs.fishBonusBaseline ?? 0),
+      );
+      const targetFishCount = clampFishCount(rs.fishCount + netFishBonus);
+      const n = targetFishCount;
       const ambienceNow = rs.ambience;
       const modeNow = appModeRef.current;
       const breathAmbient = relaxBreathAmbientRef.current;

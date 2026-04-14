@@ -16,6 +16,11 @@ export type AquariumRuntimeSettings = {
   ambience: AquariumAmbience;
   /** Clamped each frame to DEFAULT…MAX. */
   fishCount: number;
+  /**
+   * Timer-granted `environmentGrowth.fishBonusCount` at last reset (or 0).
+   * Net bonus shown in the tank = max(0, fishBonusCount - this).
+   */
+  fishBonusBaseline: number;
   /** Focus-driven growth layer; rendering systems read this (not timer logic). */
   environmentGrowth: EnvironmentGrowthState;
 };

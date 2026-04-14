@@ -42,6 +42,7 @@ function HomeAquariumExperienceContent() {
   const runtimeSettingsRef = useRef<AquariumRuntimeSettings>({
     ambience: "night",
     fishCount: DEFAULT_FISH_COUNT,
+    fishBonusBaseline: 0,
     environmentGrowth: DEFAULT_ENVIRONMENT_GROWTH_STATE,
   });
 
@@ -54,8 +55,9 @@ function HomeAquariumExperienceContent() {
   useLayoutEffect(() => {
     runtimeSettingsRef.current.ambience = isNight ? "night" : "day";
     runtimeSettingsRef.current.fishCount = fishCount;
+    runtimeSettingsRef.current.fishBonusBaseline = growthBaselineBonus;
     runtimeSettingsRef.current.environmentGrowth = environmentGrowth;
-  }, [isNight, fishCount, environmentGrowth]);
+  }, [isNight, fishCount, growthBaselineBonus, environmentGrowth]);
 
   useLayoutEffect(() => {
     feedModeRef.current = isFeedMode;
