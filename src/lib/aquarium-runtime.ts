@@ -1,3 +1,6 @@
+import type { EnvironmentGrowthState } from "@/src/lib/environment-growth";
+import { ENVIRONMENT_GROWTH_IDLE } from "@/src/lib/environment-growth";
+
 export type AquariumAmbience = "day" | "night";
 
 /** Default school size (user can add fish up to `MAX_FISH_COUNT`). */
@@ -13,7 +16,11 @@ export type AquariumRuntimeSettings = {
   ambience: AquariumAmbience;
   /** Clamped each frame to DEFAULT…MAX. */
   fishCount: number;
+  /** Focus-driven growth layer; rendering systems read this (not timer logic). */
+  environmentGrowth: EnvironmentGrowthState;
 };
+
+export const DEFAULT_ENVIRONMENT_GROWTH_STATE = ENVIRONMENT_GROWTH_IDLE;
 
 /** One mode-specific caption under the title (see `MODE_TAGLINES` in `mode-taglines.ts`). */
 const POETRY_TAGLINE_LINE_COUNT = 1;

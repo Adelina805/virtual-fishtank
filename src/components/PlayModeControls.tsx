@@ -4,7 +4,12 @@ export type PlayModeControlsProps = {
   isNight: boolean;
   isFeedMode: boolean;
   onToggleFeedMode: () => void;
+  /** Base school size (Play actions mutate this). */
   fishCount: number;
+  /** Shown in the readout; defaults to `fishCount`. Use for live tank total (e.g. focus growth). */
+  displayFishCount?: number;
+  /** When false, fish/feed controls are inactive (e.g. Relax / Focus). */
+  actionsEnabled?: boolean;
   defaultFishCount: number;
   maxFishCount: number;
   onAddFish: () => void;
@@ -88,13 +93,17 @@ export default function PlayModeControls({
   isFeedMode,
   onToggleFeedMode,
   fishCount,
+  displayFishCount,
+  actionsEnabled = true,
   defaultFishCount,
   maxFishCount,
   onAddFish,
   onResetFish,
 }: PlayModeControlsProps) {
-  const atMax = fishCount >= maxFishCount;
+  const shownCount = displayFishCount ?? fishCount;
+  const atMax = shownCount >= maxFishCount;
   const noExtras = fishCount <= defaultFishCount;
+  const canInteract = actionsEnabled;
 
   const shell = isNight
     ? "rounded-xl border border-white/[0.13] bg-slate-950/[0.34] shadow-[0_12px_36px_-10px_rgba(0,0,0,0.5),inset_0_1px_0_0_rgba(255,255,255,0.06)] backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-slate-950/[0.28]"
@@ -105,13 +114,17 @@ export default function PlayModeControls({
     ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/[0.88] transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/[0.09] active:scale-[0.97] active:bg-white/[0.12] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
     : "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-950 transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/90 active:scale-[0.97] active:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60";
 
-  const feedBtn = isFeedMode
+  const feedBtn = !canInteract
     ? isNight
-      ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.12] text-white transition-[background-color,color,transform] duration-200 ease-out hover:bg-white/[0.16] active:scale-[0.97] active:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
-      : "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-950/12 text-slate-950 transition-[background-color,color,transform] duration-200 ease-out hover:bg-slate-950/16 active:scale-[0.97] active:bg-slate-950/18 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60"
-    : toolbarIconBtn;
+      ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/28"
+      : "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500"
+    : isFeedMode
+      ? isNight
+        ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.12] text-white transition-[background-color,color,transform] duration-200 ease-out hover:bg-white/[0.16] active:scale-[0.97] active:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
+        : "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-950/12 text-slate-950 transition-[background-color,color,transform] duration-200 ease-out hover:bg-slate-950/16 active:scale-[0.97] active:bg-slate-950/18 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60"
+      : toolbarIconBtn;
 
-  const addBtn = atMax
+  const addBtn = !canInteract || atMax
     ? isNight
       ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/28"
       : "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500"
@@ -119,14 +132,16 @@ export default function PlayModeControls({
       ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/[0.11] text-white transition-[background-color,color,transform] duration-200 ease-out hover:bg-white/[0.16] active:scale-[0.97] active:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
       : "grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-slate-950/10 text-neutral-950 transition-[background-color,color,transform] duration-200 ease-out hover:bg-slate-950/14 active:scale-[0.97] active:bg-slate-950/18 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60";
 
-  const resetIconBtn = noExtras
+  const resetIconBtn = !canInteract || noExtras
     ? isNight
       ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/28"
       : "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500"
     : toolbarIconBtn;
 
   return (
-    <div className="pointer-events-auto w-max max-w-[calc(100vw-2rem)]">
+    <div
+      className={`${canInteract ? "pointer-events-auto" : "pointer-events-none"} w-max max-w-[calc(100vw-2rem)]`}
+    >
       <div className={`${shell} overflow-hidden p-1`}>
         <div className="flex items-center gap-0.5">
           <div className="flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1">
@@ -149,13 +164,13 @@ export default function PlayModeControls({
                 }
                 aria-live="polite"
               >
-                {fishCount}
+                {shownCount}
               </p>
             </div>
             <button
               type="button"
               className={addBtn}
-              disabled={atMax}
+              disabled={!canInteract || atMax}
               onClick={onAddFish}
               aria-label={`Add one fish (${fishCount} of ${maxFishCount})`}
             >
@@ -175,7 +190,7 @@ export default function PlayModeControls({
           <button
             type="button"
             className={resetIconBtn}
-            disabled={noExtras}
+            disabled={!canInteract || noExtras}
             onClick={onResetFish}
             aria-label={
               noExtras
@@ -199,6 +214,7 @@ export default function PlayModeControls({
           <button
             type="button"
             className={feedBtn}
+            disabled={!canInteract}
             onClick={onToggleFeedMode}
             aria-pressed={isFeedMode}
             aria-label={isFeedMode ? "Exit feed mode" : "Enter feed mode"}

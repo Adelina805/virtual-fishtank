@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import PlayModeControls from "@/src/components/PlayModeControls";
 import ThemeToggle from "@/src/components/ThemeToggle";
 import AquariumTankLayer, {
@@ -10,6 +11,7 @@ import AppShell from "@/src/components/shell/AppShell";
 import { AppModeProvider } from "@/src/state/app-mode-context";
 import { FocusTimerProvider } from "@/src/state/focus-timer-context";
 import {
+  DEFAULT_ENVIRONMENT_GROWTH_STATE,
   DEFAULT_FISH_COUNT,
   getAquariumPoetryLayout,
   MAX_FISH_COUNT,
@@ -19,8 +21,14 @@ import {
   RELAX_BREATH_AMBIENT_IDLE,
   type RelaxBreathAmbientState,
 } from "@/src/lib/relax-breathing-cycle";
+import { useEnvironmentGrowth } from "@/src/hooks/use-environment-growth";
 
-export default function HomeAquariumExperience() {
+const FishCountToggle = dynamic(
+  () => import("@/src/components/FishCountToggle"),
+  { ssr: false, loading: () => null },
+);
+
+function HomeAquariumExperienceContent() {
   const [isNight, setIsNight] = useState(true);
   const [fishCount, setFishCount] = useState(DEFAULT_FISH_COUNT);
   const [isFeedMode, setIsFeedMode] = useState(false);
@@ -33,17 +41,20 @@ export default function HomeAquariumExperience() {
   const runtimeSettingsRef = useRef<AquariumRuntimeSettings>({
     ambience: "night",
     fishCount: DEFAULT_FISH_COUNT,
+    environmentGrowth: DEFAULT_ENVIRONMENT_GROWTH_STATE,
   });
 
   const feedModeRef = useRef(false);
   const relaxBreathAmbientRef = useRef<RelaxBreathAmbientState>(
     RELAX_BREATH_AMBIENT_IDLE,
   );
+  const environmentGrowth = useEnvironmentGrowth();
 
   useLayoutEffect(() => {
     runtimeSettingsRef.current.ambience = isNight ? "night" : "day";
     runtimeSettingsRef.current.fishCount = fishCount;
-  }, [isNight, fishCount]);
+    runtimeSettingsRef.current.environmentGrowth = environmentGrowth;
+  }, [isNight, fishCount, environmentGrowth]);
 
   useLayoutEffect(() => {
     feedModeRef.current = isFeedMode;
@@ -95,47 +106,62 @@ export default function HomeAquariumExperience() {
     return () => ro.disconnect();
   }, []);
 
+  const effectiveTankFishCount = Math.min(
+    MAX_FISH_COUNT,
+    fishCount + environmentGrowth.fishBonusCount,
+  );
+
+  return (
+    <AppShell
+      isNight={isNight}
+      sceneVisible={sceneVisible}
+      controlsVisible={controlsVisible}
+      relaxBreathAmbientRef={relaxBreathAmbientRef}
+      poetryLayout={poetryLayout}
+      tankLayer={
+        <AquariumTankLayer
+          isNight={isNight}
+          sceneVisible={sceneVisible}
+          poetryLayout={poetryLayout}
+          tankMeasureRef={tankMeasureRef}
+          runtimeSettingsRef={runtimeSettingsRef}
+          feedModeRef={feedModeRef}
+          relaxBreathAmbientRef={relaxBreathAmbientRef}
+        />
+      }
+      globalControls={
+        <div className="flex flex-col items-end gap-1.5">
+          <ThemeToggle
+            isNight={isNight}
+            onToggleDayNight={() => setIsNight((v) => !v)}
+          />
+          <FishCountToggle isNight={isNight} fishCount={effectiveTankFishCount} />
+        </div>
+      }
+      playControls={
+        <PlayModeControls
+          isNight={isNight}
+          isFeedMode={isFeedMode}
+          onToggleFeedMode={() => setIsFeedMode((v) => !v)}
+          fishCount={fishCount}
+          displayFishCount={effectiveTankFishCount}
+          defaultFishCount={DEFAULT_FISH_COUNT}
+          maxFishCount={MAX_FISH_COUNT}
+          onAddFish={() =>
+            setFishCount((c) => Math.min(MAX_FISH_COUNT, c + 1))
+          }
+          onResetFish={() => setFishCount(DEFAULT_FISH_COUNT)}
+        />
+      }
+    />
+  );
+}
+
+export default function HomeAquariumExperience() {
   return (
     <AppModeProvider>
       <FocusTimerProvider>
-        <AppShell
-          isNight={isNight}
-          sceneVisible={sceneVisible}
-          controlsVisible={controlsVisible}
-          relaxBreathAmbientRef={relaxBreathAmbientRef}
-          poetryLayout={poetryLayout}
-          tankLayer={
-            <AquariumTankLayer
-              isNight={isNight}
-              sceneVisible={sceneVisible}
-              poetryLayout={poetryLayout}
-              tankMeasureRef={tankMeasureRef}
-              runtimeSettingsRef={runtimeSettingsRef}
-              feedModeRef={feedModeRef}
-              relaxBreathAmbientRef={relaxBreathAmbientRef}
-            />
-          }
-          globalControls={
-            <ThemeToggle
-              isNight={isNight}
-              onToggleDayNight={() => setIsNight((v) => !v)}
-            />
-          }
-          playControls={
-            <PlayModeControls
-              isNight={isNight}
-              isFeedMode={isFeedMode}
-              onToggleFeedMode={() => setIsFeedMode((v) => !v)}
-              fishCount={fishCount}
-              defaultFishCount={DEFAULT_FISH_COUNT}
-              maxFishCount={MAX_FISH_COUNT}
-              onAddFish={() =>
-                setFishCount((c) => Math.min(MAX_FISH_COUNT, c + 1))
-              }
-              onResetFish={() => setFishCount(DEFAULT_FISH_COUNT)}
-            />
-          }
-        />
+        <HomeAquariumExperienceContent />
       </FocusTimerProvider>
     </AppModeProvider>
   );

@@ -15,6 +15,7 @@ import {
 import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 import { MODE_TAGLINES } from "@/src/lib/mode-taglines";
 import {
+  DEFAULT_ENVIRONMENT_GROWTH_STATE,
   DEFAULT_FISH_COUNT,
   getAquariumPoetryLayout,
   MAX_FISH_COUNT,
@@ -1934,6 +1935,84 @@ function drawForegroundSeaweed(
   ctx.fill();
 }
 
+function drawGrowthPlantRichness(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  timeSec: number,
+  richness01: number,
+) {
+  if (richness01 <= 1e-4) return;
+  const t = clamp01(richness01);
+  const baseY = height + height * 0.015;
+  const sway = Math.sin(timeSec * 0.24) * width * 0.005;
+
+  const blade = (rootX: number, lean: number, reach: number, thickness: number, phase: number) => {
+    const swayLean = Math.sin(timeSec * 0.34 + phase) * width * 0.008 + sway;
+    const tipX = rootX + lean + swayLean;
+    const tipY = baseY - reach;
+    const midX = rootX + (lean + swayLean) * 0.5;
+    const midY = baseY - reach * 0.52;
+    ctx.beginPath();
+    ctx.moveTo(rootX - thickness, baseY);
+    ctx.quadraticCurveTo(midX - thickness * 0.7, midY, tipX, tipY);
+    ctx.quadraticCurveTo(midX + thickness * 0.75, midY, rootX + thickness, baseY);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  ctx.save();
+  ctx.globalAlpha = 0.1 + t * 0.3;
+  ctx.fillStyle = "#0b2f36";
+  blade(width * 0.15, width * 0.018, height * 0.24, width * 0.008, 0.7);
+  blade(width * 0.31, -width * 0.014, height * 0.2, width * 0.007, 1.8);
+  blade(width * 0.57, width * 0.01, height * 0.22, width * 0.007, 2.5);
+  blade(width * 0.83, -width * 0.016, height * 0.25, width * 0.008, 1.2);
+  ctx.restore();
+}
+
+function drawGrowthRareVisuals(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  timeSec: number,
+  rare01: number,
+) {
+  if (rare01 <= 1e-4) return;
+  const t = clamp01(rare01);
+  const pulse = 0.75 + 0.25 * Math.sin(timeSec * 0.28);
+  const shimmer = 0.65 + 0.35 * Math.sin(timeSec * 0.42 + 1.2);
+
+  ctx.save();
+  ctx.globalAlpha = t * 0.2 * pulse;
+  const glow = ctx.createRadialGradient(
+    width * 0.78,
+    height * 0.34,
+    0,
+    width * 0.78,
+    height * 0.34,
+    Math.min(width, height) * 0.42,
+  );
+  glow.addColorStop(0, "rgba(128, 245, 232, 0.72)");
+  glow.addColorStop(0.55, "rgba(86, 196, 224, 0.2)");
+  glow.addColorStop(1, "rgba(32, 90, 128, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.globalAlpha = t * 0.16 * shimmer;
+  const specks = 6;
+  for (let i = 0; i < specks; i++) {
+    const px = width * (0.58 + i * 0.06);
+    const py = height * (0.28 + Math.sin(timeSec * 0.35 + i * 0.9) * 0.04);
+    const r = 0.8 + i * 0.2;
+    ctx.fillStyle = "rgba(180, 245, 255, 0.92)";
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 function drawAquariumPoetry(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -2030,6 +2109,7 @@ type AquariumCanvasSimulation = {
   lastBackingH: number;
   lastNow: number;
   lastAppliedFishCount: number;
+  growthFishCountSmoothed: number;
   /** Cleared when the backing store is resized so gradients stay valid for the context. */
   paint: AquariumPaintCache | null;
   /** Raster cache for poetry text after opening reveal; cleared on resize / ambience / font. */
@@ -2058,6 +2138,7 @@ function createAquariumSimulation(): AquariumCanvasSimulation {
     lastBackingH: -1,
     lastNow: 0,
     lastAppliedFishCount: 0,
+    growthFishCountSmoothed: 0,
     paint: null,
     poetryRaster: null,
     relaxFishSpeedMulSmoothed: 1,
@@ -2095,6 +2176,7 @@ function AquariumCanvasComponent({
   const fallbackRuntimeRef = useRef<AquariumRuntimeSettings>({
     ambience,
     fishCount: clampFishCount(fishCount),
+    environmentGrowth: DEFAULT_ENVIRONMENT_GROWTH_STATE,
   });
   const runtimeSettingsRef =
     runtimeSettingsRefProp ?? fallbackRuntimeRef;
@@ -2103,6 +2185,7 @@ function AquariumCanvasComponent({
     if (runtimeSettingsRefProp) return;
     fallbackRuntimeRef.current.ambience = ambience;
     fallbackRuntimeRef.current.fishCount = clampFishCount(fishCount);
+    fallbackRuntimeRef.current.environmentGrowth = DEFAULT_ENVIRONMENT_GROWTH_STATE;
   }, [runtimeSettingsRefProp, ambience, fishCount]);
 
   const poemFontFamilyRef = useRef(poemFontFamily);
@@ -2156,6 +2239,7 @@ function AquariumCanvasComponent({
     sim.relaxFishSpeedMulSmoothed = 1;
     sim.relaxFishCenterDriftSmoothed = 0;
     sim.relaxLightOverlaySmoothed = 0;
+    sim.growthFishCountSmoothed = 0;
 
     const { buf, fish, pointerBubbles, pointerSpawn } = sim;
     const foodSim = sim.food;
@@ -2330,7 +2414,18 @@ function AquariumCanvasComponent({
       sim.lastNow = now;
 
       const rs = runtimeSettingsRef.current;
-      const n = clampFishCount(rs.fishCount);
+      const growthNow =
+        rs.environmentGrowth ?? DEFAULT_ENVIRONMENT_GROWTH_STATE;
+      const targetFishCount = clampFishCount(rs.fishCount + growthNow.fishBonusCount);
+      if (sim.growthFishCountSmoothed <= 0) {
+        sim.growthFishCountSmoothed = targetFishCount;
+      } else {
+        const deltaFish = targetFishCount - sim.growthFishCountSmoothed;
+        const fishRampPerSec = deltaFish >= 0 ? 0.55 : 1.4;
+        const fishStep = Math.min(Math.abs(deltaFish), fishRampPerSec * dt);
+        sim.growthFishCountSmoothed += Math.sign(deltaFish) * fishStep;
+      }
+      const n = clampFishCount(Math.round(sim.growthFishCountSmoothed));
       const ambienceNow = rs.ambience;
       const modeNow = appModeRef.current;
       const breathAmbient = relaxBreathAmbientRef.current;
@@ -2435,6 +2530,8 @@ function AquariumCanvasComponent({
       );
       const heroFishCount = Math.min(4, n);
       const fishVisibleCount = openingElapsedMs < OPENING_PRIMARY_MS ? heroFishCount : n;
+      const growthPlantsAlpha = growthNow.plantRichness01;
+      const growthRareAlpha = growthNow.rareVisuals01;
 
       drawUnderwaterBackground(
         ctx,
@@ -2474,6 +2571,12 @@ function AquariumCanvasComponent({
         drawMidgroundRocksAndPlants(ctx, cssW, cssH, timeSec);
         ctx.restore();
       }
+      if (growthPlantsAlpha > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = growthPlantsAlpha;
+        drawGrowthPlantRichness(ctx, cssW, cssH, timeSec, growthPlantsAlpha);
+        ctx.restore();
+      }
       drawFishSchool(ctx, fish, timeSec, FISH_DEPTH_MID, fishVisibleCount, cssW);
       if (foregroundT > 0.01) {
         ctx.save();
@@ -2488,6 +2591,9 @@ function AquariumCanvasComponent({
         drawBubbles(ctx, buf, timeSec, cssW, cssH);
         drawPointerBubbles(ctx, pointerBubbles, timeSec, cssW, cssH);
         ctx.restore();
+      }
+      if (growthRareAlpha > 0.01) {
+        drawGrowthRareVisuals(ctx, cssW, cssH, timeSec, growthRareAlpha);
       }
       if (DEBUG_SHOW_FISH_MOUTH_HITBOX) {
         drawFishMouthHitboxesDebug(

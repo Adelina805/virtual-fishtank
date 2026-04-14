@@ -1,4 +1,7 @@
-import { formatFocusCountdown } from "@/src/hooks/use-focus-timer";
+import {
+  FOCUS_TIMER_DEBUG_MULT,
+  formatFocusCountdown,
+} from "@/src/hooks/use-focus-timer";
 import { useFocusTimerRemaining } from "@/src/state/focus-timer-context";
 
 export type FocusTimerReadoutProps = {
@@ -11,7 +14,7 @@ export type FocusTimerReadoutProps = {
  */
 export default function FocusTimerReadout({ isNight }: FocusTimerReadoutProps) {
   const remainingMs = useFocusTimerRemaining();
-  const display = formatFocusCountdown(remainingMs);
+  const display = formatFocusCountdown(remainingMs * FOCUS_TIMER_DEBUG_MULT);
 
   return (
     <p

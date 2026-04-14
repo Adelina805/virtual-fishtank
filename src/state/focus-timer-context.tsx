@@ -26,6 +26,7 @@ export type FocusTimerActions = {
 };
 
 const RemainingContext = createContext<number | null>(null);
+const ElapsedContext = createContext<number | null>(null);
 const ModeContext = createContext<FocusTimerMode | null>(null);
 const ActionsContext = createContext<FocusTimerActions | null>(null);
 
@@ -56,13 +57,16 @@ export function FocusTimerProvider({ children }: { children: ReactNode }) {
       timer.reset,
     ],
   );
+  const elapsedMs = timer.elapsedMs;
 
   return (
     <ActionsContext.Provider value={actions}>
       <ModeContext.Provider value={mode}>
-        <RemainingContext.Provider value={timer.remainingMs}>
-          {children}
-        </RemainingContext.Provider>
+        <ElapsedContext.Provider value={elapsedMs}>
+          <RemainingContext.Provider value={timer.remainingMs}>
+            {children}
+          </RemainingContext.Provider>
+        </ElapsedContext.Provider>
       </ModeContext.Provider>
     </ActionsContext.Provider>
   );
@@ -80,6 +84,14 @@ export function useFocusTimerMode(): FocusTimerMode {
   const v = useContext(ModeContext);
   if (!v) {
     throw new Error("useFocusTimerMode must be used within FocusTimerProvider");
+  }
+  return v;
+}
+
+export function useFocusTimerElapsed(): number {
+  const v = useContext(ElapsedContext);
+  if (v === null) {
+    throw new Error("useFocusTimerElapsed must be used within FocusTimerProvider");
   }
   return v;
 }
