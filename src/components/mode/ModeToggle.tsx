@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, type CSSProperties, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
 import { APP_MODES, type AppMode } from "@/src/lib/app-mode";
 import { useUiSound } from "@/src/hooks/use-ui-sound";
 import { useAppMode } from "@/src/state/app-mode-context";
@@ -26,6 +31,12 @@ const TOUCH_SAFE_BUTTON_STYLE: CSSProperties = {
 export default function ModeToggle({ isNight, className = "" }: ModeToggleProps) {
   const { mode, setMode } = useAppMode();
   const { playUiSound } = useUiSound();
+
+  const onPressStart = useCallback((e: PointerEvent<HTMLButtonElement>) => {
+    if (e.pointerType === "touch" || e.pointerType === "pen") {
+      e.preventDefault();
+    }
+  }, []);
 
   const onKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
@@ -71,6 +82,7 @@ export default function ModeToggle({ isNight, className = "" }: ModeToggleProps)
                 aria-checked={selected}
                 className={selected ? activeBtn : idleBtn}
                 style={TOUCH_SAFE_BUTTON_STYLE}
+                onPointerDown={onPressStart}
                 onClick={() => {
                   if (m === mode) return;
                   playUiSound();
