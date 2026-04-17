@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 const UI_BUBBLE_SOUND_SRC = "/audio/ui-bubble.mp3";
-const DEFAULT_VOLUME = 0.16;
+const DEFAULT_VOLUME = 0.05;
 const DEFAULT_COOLDOWN_MS = 120;
 
 export type UseUiSoundOptions = {
