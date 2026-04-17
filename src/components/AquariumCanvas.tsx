@@ -993,7 +993,7 @@ function stepFish(
     fish.y[i] += vy * breathSpeedMul * dt;
     fish.y[i] = Math.min(bottom, Math.max(top, fish.y[i]));
 
-    const horizForFacing = seeking ? vx : fish.speed[i] * swimMul * fish.dir[i];
+    const horizForFacing = vx;
     if (horizForFacing > minFacingSpeed) fish.dir[i] = 1;
     else if (horizForFacing < -minFacingSpeed) fish.dir[i] = -1;
 
