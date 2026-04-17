@@ -200,6 +200,14 @@ type FishSchool = {
   turnTimer: Float32Array;
   /** Prevent rapid flip-flopping when the pointer stays in front. */
   turnCooldown: Float32Array;
+  /**
+   * Relax-mode-only gather biases (stable for the fish's lifetime): inhale drift steers toward a
+   * point near center with per-fish spread so the school does not collapse to one line.
+   */
+  relaxBreathGatherBiasXNorm: Float32Array;
+  relaxBreathGatherBiasYNorm: Float32Array;
+  relaxBreathGatherDriftMul: Float32Array;
+  relaxBreathGatherWobblePhase: Float32Array;
 };
 
 /** Tropical reef-inspired gradients (dorsal → mid → belly + tail accent). */
@@ -238,6 +246,10 @@ function createFishSchool(capacity: number): FishSchool {
     paletteId: new Uint8Array(capacity),
     turnTimer: new Float32Array(capacity),
     turnCooldown: new Float32Array(capacity),
+    relaxBreathGatherBiasXNorm: new Float32Array(capacity),
+    relaxBreathGatherBiasYNorm: new Float32Array(capacity),
+    relaxBreathGatherDriftMul: new Float32Array(capacity),
+    relaxBreathGatherWobblePhase: new Float32Array(capacity),
   };
 }
 
@@ -327,6 +339,14 @@ function initFishIndex(fish: FishSchool, i: number, w: number, h: number) {
         ? 1.02 + Math.random() * 0.14
         : 0.9 + Math.random() * 0.14;
   fish.speed[i] = baseSpeed * depthSpeedMul;
+
+  fish.relaxBreathGatherBiasXNorm[i] = Math.random() * 2 - 1;
+  fish.relaxBreathGatherBiasYNorm[i] = Math.random() * 2 - 1;
+  fish.relaxBreathGatherDriftMul[i] =
+    RELAX_BREATH_FISH_GATHER.driftStrengthMin +
+    Math.random() *
+      (RELAX_BREATH_FISH_GATHER.driftStrengthMax - RELAX_BREATH_FISH_GATHER.driftStrengthMin);
+  fish.relaxBreathGatherWobblePhase[i] = Math.random() * Math.PI * 2;
 }
 
 function resetFish(fish: FishSchool, w: number, h: number, count: number) {
@@ -607,6 +627,25 @@ type RelaxBreathFishMod = {
   speedMul: number;
   centerDrift01: number;
 };
+
+/**
+ * Relax inhale "gather" uses per-fish targets derived from these knobs so every fish is not pulled
+ * to the same (centerX, midY) — that shared attractor caused a horizontal band over long runs.
+ * Only read inside `stepFish` when `relaxFish` is set (Relax mode + active breath).
+ */
+const RELAX_BREATH_FISH_GATHER = {
+  /** Max horizontal offset from canvas center, as a fraction of width (bias is -1…1 per fish). */
+  targetXNormSpread: 0.09,
+  /** Max vertical offset from mid-band, as a fraction of swim band height (bias is -1…1 per fish). */
+  targetYNormSpread: 0.28,
+  /** Scales inhale center-drift steering; each fish gets its own multiplier in this range at init. */
+  driftStrengthMin: 0.76,
+  driftStrengthMax: 1.22,
+  /** Very slow vertical motion of each fish's gather point (rad/s); keeps distribution from freezing. */
+  slowYWobbleRadPerSec: 0.072,
+  /** Peak offset in CSS px for that slow Y motion (subtle, smooth). */
+  slowYWobbleAmpPx: 18,
+} as const;
 
 function stepFish(
   fish: FishSchool,
@@ -927,14 +966,35 @@ function stepFish(
       st !== FISH_FS_EAT
     ) {
       const midY = (top + bottom) * 0.5;
-      let dx = halfW - fish.x[i]!;
+      const bandH = Math.max(1, bottom - top);
+      const gx =
+        halfW +
+        fish.relaxBreathGatherBiasXNorm[i]! *
+          RELAX_BREATH_FISH_GATHER.targetXNormSpread *
+          w;
+      const gy =
+        midY +
+        fish.relaxBreathGatherBiasYNorm[i]! *
+          RELAX_BREATH_FISH_GATHER.targetYNormSpread *
+          bandH +
+        Math.sin(
+          timeSec * RELAX_BREATH_FISH_GATHER.slowYWobbleRadPerSec +
+            fish.relaxBreathGatherWobblePhase[i]!,
+        ) *
+          RELAX_BREATH_FISH_GATHER.slowYWobbleAmpPx;
+      let dx = gx - fish.x[i]!;
       if (dx > halfW) dx -= w;
       else if (dx < -halfW) dx += w;
-      const dy = midY - fish.y[i]!;
+      const dy = gy - fish.y[i]!;
       const distSq = dx * dx + dy * dy + 2800;
       const invDist = 1 / Math.sqrt(distSq);
       const pointerDim = pointerActive ? 0.35 : 1;
-      const bias = breathCenterDrift * maxSteer * 0.95 * pointerDim;
+      const bias =
+        breathCenterDrift *
+        maxSteer *
+        0.95 *
+        pointerDim *
+        fish.relaxBreathGatherDriftMul[i]!;
       targetVx += dx * invDist * bias;
       targetVy += dy * invDist * bias;
     }
