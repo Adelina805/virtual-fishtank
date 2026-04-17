@@ -6,7 +6,7 @@ export type AmbientAudioToggleProps = {
   onToggle: () => void;
 };
 
-function VolumeOnIcon({ className }: { className?: string }) {
+function MusicIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -18,14 +18,14 @@ function VolumeOnIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden
     >
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-      <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-      <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
     </svg>
   );
 }
 
-function VolumeOffIcon({ className }: { className?: string }) {
+function MusicMuteSlash({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -37,9 +37,7 @@ function VolumeOffIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden
     >
-      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-      <line x1="23" y1="9" x2="17" y2="15" />
-      <line x1="17" y1="9" x2="23" y2="15" />
+      <path d="M4 4 20 20" />
     </svg>
   );
 }
@@ -55,6 +53,8 @@ export default function AmbientAudioToggle({
   const iconBtn = isNight
     ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/[0.88] transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/[0.09] active:scale-[0.97] active:bg-white/[0.12] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
     : "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-950 transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/90 active:scale-[0.97] active:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60";
+  const iconOpacity = isEnabled ? "opacity-100" : "opacity-50";
+  const strikeOpacity = isEnabled ? "opacity-0" : "opacity-70";
 
   return (
     <div className="pointer-events-auto w-max">
@@ -68,11 +68,15 @@ export default function AmbientAudioToggle({
             isEnabled ? "Disable ambient audio" : "Enable ambient audio"
           }
         >
-          {isEnabled ? (
-            <VolumeOnIcon className="h-4.5 w-4.5" />
-          ) : (
-            <VolumeOffIcon className="h-4.5 w-4.5" />
-          )}
+          <span className="relative grid h-4.5 w-4.5 place-items-center">
+            <MusicIcon
+              className={`h-4.5 w-4.5 transition-opacity duration-200 ${iconOpacity}`}
+            />
+            <MusicMuteSlash
+              className={`pointer-events-none absolute h-4.5 w-4.5 transition-opacity duration-200 ${strikeOpacity}`}
+              aria-hidden
+            />
+          </span>
         </button>
       </div>
     </div>
