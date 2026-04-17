@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, type KeyboardEvent } from "react";
+import { useCallback, type CSSProperties, type KeyboardEvent } from "react";
 import { APP_MODES, type AppMode } from "@/src/lib/app-mode";
 import { useUiSound } from "@/src/hooks/use-ui-sound";
 import { useAppMode } from "@/src/state/app-mode-context";
@@ -14,6 +14,13 @@ const MODE_LABELS: Record<AppMode, string> = {
   relax: "Relax",
   focus: "Focus",
   play: "Play",
+};
+
+const TOUCH_SAFE_BUTTON_STYLE: CSSProperties = {
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  WebkitTouchCallout: "none",
+  WebkitTapHighlightColor: "transparent",
 };
 
 export default function ModeToggle({ isNight, className = "" }: ModeToggleProps) {
@@ -63,13 +70,14 @@ export default function ModeToggle({ isNight, className = "" }: ModeToggleProps)
                 role="radio"
                 aria-checked={selected}
                 className={selected ? activeBtn : idleBtn}
+                style={TOUCH_SAFE_BUTTON_STYLE}
                 onClick={() => {
                   if (m === mode) return;
                   playUiSound();
                   setMode(m);
                 }}
               >
-                {MODE_LABELS[m]}
+                <span style={TOUCH_SAFE_BUTTON_STYLE}>{MODE_LABELS[m]}</span>
               </button>
             );
           })}
