@@ -24,9 +24,6 @@ import {
 } from "@/src/lib/relax-breathing-cycle";
 import { useEnvironmentGrowth } from "@/src/hooks/use-environment-growth";
 import { useAmbientAudio } from "@/src/hooks/use-ambient-audio";
-import {
-  type PlayInteractionMode,
-} from "@/src/lib/play-cursor-interaction";
 
 const FishCountToggle = dynamic(
   () => import("@/src/components/FishCountToggle"),
@@ -38,8 +35,6 @@ function HomeAquariumExperienceContent() {
   const [fishCount, setFishCount] = useState(DEFAULT_FISH_COUNT);
   const [growthBaselineBonus, setGrowthBaselineBonus] = useState(0);
   const [isFeedMode, setIsFeedMode] = useState(false);
-  const [playInteractionMode, setPlayInteractionMode] =
-    useState<PlayInteractionMode>("attract");
   const [sceneVisible, setSceneVisible] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const [poetryLayout, setPoetryLayout] = useState<PoetryLayout | null>(null);
@@ -71,8 +66,10 @@ function HomeAquariumExperienceContent() {
     runtimeSettingsRef.current.fishCount = fishCount;
     runtimeSettingsRef.current.fishBonusBaseline = growthBaselineBonus;
     runtimeSettingsRef.current.environmentGrowth = environmentGrowth;
-    runtimeSettingsRef.current.playInteractionMode = playInteractionMode;
-  }, [isNight, fishCount, growthBaselineBonus, environmentGrowth, playInteractionMode]);
+    runtimeSettingsRef.current.playInteractionMode = isFeedMode
+      ? "attract"
+      : "repel";
+  }, [isNight, fishCount, growthBaselineBonus, environmentGrowth, isFeedMode]);
 
   useLayoutEffect(() => {
     feedModeRef.current = isFeedMode;
@@ -167,12 +164,6 @@ function HomeAquariumExperienceContent() {
           isNight={isNight}
           isFeedMode={isFeedMode}
           onToggleFeedMode={() => setIsFeedMode((v) => !v)}
-          interactionMode={playInteractionMode}
-          onToggleInteractionMode={() =>
-            setPlayInteractionMode((mode) =>
-              mode === "attract" ? "repel" : "attract",
-            )
-          }
           fishCount={fishCount}
           displayFishCount={effectiveTankFishCount}
           defaultFishCount={DEFAULT_FISH_COUNT}

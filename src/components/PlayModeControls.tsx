@@ -1,13 +1,9 @@
 "use client";
 
-import type { PlayInteractionMode } from "@/src/lib/play-cursor-interaction";
-
 export type PlayModeControlsProps = {
   isNight: boolean;
   isFeedMode: boolean;
   onToggleFeedMode: () => void;
-  interactionMode: PlayInteractionMode;
-  onToggleInteractionMode: () => void;
   /** Base school size (Play actions mutate this). */
   fishCount: number;
   /** Shown in the readout; defaults to `fishCount`. Use for live tank total (e.g. focus growth). */
@@ -96,8 +92,6 @@ export default function PlayModeControls({
   isNight,
   isFeedMode,
   onToggleFeedMode,
-  interactionMode,
-  onToggleInteractionMode,
   fishCount,
   displayFishCount,
   actionsEnabled = true,
@@ -142,10 +136,6 @@ export default function PlayModeControls({
     : isNight
       ? "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/28"
       : "grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-500";
-
-  const interactionBtn = isNight
-    ? "ml-0.5 h-8 shrink-0 rounded-lg border border-white/[0.14] bg-white/[0.08] px-2.5 text-[0.625rem] font-semibold tracking-[0.03em] text-white/92 transition-[background-color,color,transform] duration-200 ease-out hover:bg-white/[0.13] active:scale-[0.98] active:bg-white/[0.16] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
-    : "ml-0.5 h-8 shrink-0 rounded-lg border border-slate-900/12 bg-slate-950/10 px-2.5 text-[0.625rem] font-semibold tracking-[0.03em] text-slate-950 transition-[background-color,color,transform] duration-200 ease-out hover:bg-slate-950/14 active:scale-[0.98] active:bg-slate-950/18 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60";
 
   return (
     <div
@@ -226,15 +216,6 @@ export default function PlayModeControls({
             title={isFeedMode ? "Feed mode: on" : "Feed mode: off"}
           >
             <FishFoodIcon className="h-4.5 w-4.5" />
-          </button>
-          <button
-            type="button"
-            className={interactionBtn}
-            onClick={onToggleInteractionMode}
-            aria-label={`Cursor interaction mode: ${interactionMode}`}
-            title="Toggle cursor interaction mode"
-          >
-            {interactionMode === "attract" ? "Attract" : "Repel"}
           </button>
         </div>
       </div>

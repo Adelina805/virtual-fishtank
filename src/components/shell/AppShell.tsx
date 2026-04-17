@@ -69,9 +69,9 @@ export default function AppShell({
           }
         >
           <div
-            className={`flex w-full max-w-[min(100vw-1.5rem,28rem)] shrink-0 flex-col items-center gap-4 transition-transform duration-700 ease-out sm:max-w-none sm:gap-5 ${
-              mode === "focus" ? "pointer-events-auto" : "pointer-events-none"
-            } ${sceneVisible ? "translate-y-0" : "translate-y-2"}`}
+            className={`pointer-events-none flex w-full max-w-[min(100vw-1.5rem,28rem)] shrink-0 flex-col items-center gap-4 transition-transform duration-700 ease-out sm:max-w-none sm:gap-5 ${
+              sceneVisible ? "translate-y-0" : "translate-y-2"
+            }`}
           >
             {mode === "relax" ? (
               <RelaxBreathingHud

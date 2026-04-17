@@ -648,6 +648,17 @@ function stepFish(
   const slowingR = Math.max(FOOD_EAT_RADIUS * 4, FOOD_SLOWING_RADIUS);
   const minFacingSpeed = 1.5;
 
+  if (!playModeActive) {
+    // Hard fence: outside Play, fish must never carry over food/seek states.
+    for (let i = 0; i < count; i++) {
+      fish.targetFoodId[i] = -1;
+      fish.foodState[i] = FISH_FS_WANDER;
+      fish.foodPhaseTimer[i] = 0;
+      fish.foodChaseT[i] = 0;
+      fish.foodBiteFrames[i] = 0;
+    }
+  }
+
   if (food.length > 0) {
     assignFoodClaims(fish, food, count, w, detectRSq);
   } else {
@@ -2329,6 +2340,8 @@ function AquariumCanvasComponent({
     const foodSim = sim.food;
     const effectStartMs = performance.now();
     let rafId = 0;
+    /** Clears Play cursor steering leftovers when leaving Play so Relax/Focus match legacy feel. */
+    let lastPlayModeActive = false;
 
     const spawnFoodAt = (x: number, y: number) => {
       const now = performance.now();
@@ -2449,7 +2462,9 @@ function AquariumCanvasComponent({
       for (let k = 0; k < burst; k++) {
         spawnPointerBubble(pointerBubbles, p.x, p.y, w, h);
       }
-      if (feedModeRef?.current) {
+      const canPlaceFood =
+        appModeRef.current === "play" && Boolean(feedModeRef?.current);
+      if (canPlaceFood) {
         spawnFoodAt(p.x, p.y);
       }
     };
@@ -2509,6 +2524,7 @@ function AquariumCanvasComponent({
       const ambienceNow = rs.ambience;
       const modeNow = appModeRef.current;
       const playModeActive = modeNow === "play";
+      const feedEnabledInPlay = playModeActive && Boolean(feedModeRef?.current);
       const playInteractionMode = rs.playInteractionMode;
       const breathAmbient = relaxBreathAmbientRef.current;
       const relaxBreathLive = modeNow === "relax" && breathAmbient.active;
@@ -2572,6 +2588,17 @@ function AquariumCanvasComponent({
       stepParticles(buf, cssW, cssH, dt);
       stepBubbles(buf, cssW, cssH, dt, timeSec);
       stepPointerBubbles(pointerBubbles, cssW, dt, timeSec);
+      if (!feedEnabledInPlay && foodSim.pellets.length > 0) {
+        foodSim.pellets.length = 0;
+      }
+      if (lastPlayModeActive && !playModeActive) {
+        for (let i = 0; i < MAX_FISH_COUNT; i++) {
+          fish.vxOff[i] = 0;
+          fish.vyOff[i] = 0;
+          fish.speedBoost[i] = 0;
+        }
+      }
+      lastPlayModeActive = playModeActive;
       // Feeding: pellets move first; then fish integrate; each fish wraps X before bite tests so
       // `getFishMouthWorld` matches draw positions (flat canvas, not toroidal mouth distance).
       stepFood(dt, cssW, cssH, now);
