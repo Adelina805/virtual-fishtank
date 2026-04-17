@@ -31,6 +31,12 @@ body {
 }
 
 @media (hover: none) and (pointer: coarse) {
+  html,
+  body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   .touch-safe-ui {
     user-select: none;
     -webkit-user-select: none;
