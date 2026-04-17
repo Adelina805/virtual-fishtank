@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import PlayModeControls from "@/src/components/PlayModeControls";
 import ThemeToggle from "@/src/components/ThemeToggle";
 import AmbientAudioToggle from "@/src/components/AmbientAudioToggle";
+import FocusTimerDocumentTitleSync from "@/src/components/FocusTimerDocumentTitleSync";
 import AquariumTankLayer, {
   type PoetryLayout,
 } from "@/src/components/shell/AquariumTankLayer";
@@ -128,56 +129,59 @@ function HomeAquariumExperienceContent() {
   );
 
   return (
-    <AppShell
-      isNight={isNight}
-      sceneVisible={sceneVisible}
-      controlsVisible={controlsVisible}
-      relaxBreathAmbientRef={relaxBreathAmbientRef}
-      poetryLayout={poetryLayout}
-      tankLayer={
-        <AquariumTankLayer
-          isNight={isNight}
-          sceneVisible={sceneVisible}
-          poetryLayout={poetryLayout}
-          tankMeasureRef={tankMeasureRef}
-          runtimeSettingsRef={runtimeSettingsRef}
-          feedModeRef={feedModeRef}
-          relaxBreathAmbientRef={relaxBreathAmbientRef}
-        />
-      }
-      globalControls={
-        <div className="flex flex-col items-end gap-1.5">
-          <ThemeToggle
+    <>
+      <FocusTimerDocumentTitleSync />
+      <AppShell
+        isNight={isNight}
+        sceneVisible={sceneVisible}
+        controlsVisible={controlsVisible}
+        relaxBreathAmbientRef={relaxBreathAmbientRef}
+        poetryLayout={poetryLayout}
+        tankLayer={
+          <AquariumTankLayer
             isNight={isNight}
-            onToggleDayNight={() => setIsNight((v) => !v)}
+            sceneVisible={sceneVisible}
+            poetryLayout={poetryLayout}
+            tankMeasureRef={tankMeasureRef}
+            runtimeSettingsRef={runtimeSettingsRef}
+            feedModeRef={feedModeRef}
+            relaxBreathAmbientRef={relaxBreathAmbientRef}
           />
-          <AmbientAudioToggle
+        }
+        globalControls={
+          <div className="flex flex-col items-end gap-1.5">
+            <ThemeToggle
+              isNight={isNight}
+              onToggleDayNight={() => setIsNight((v) => !v)}
+            />
+            <AmbientAudioToggle
+              isNight={isNight}
+              isEnabled={isAmbientAudioEnabled}
+              onToggle={toggleAmbientAudio}
+            />
+            <FishCountToggle isNight={isNight} fishCount={effectiveTankFishCount} />
+          </div>
+        }
+        playControls={
+          <PlayModeControls
             isNight={isNight}
-            isEnabled={isAmbientAudioEnabled}
-            onToggle={toggleAmbientAudio}
+            isFeedMode={isFeedMode}
+            onToggleFeedMode={() => setIsFeedMode((v) => !v)}
+            fishCount={fishCount}
+            displayFishCount={effectiveTankFishCount}
+            defaultFishCount={DEFAULT_FISH_COUNT}
+            maxFishCount={MAX_FISH_COUNT}
+            onAddFish={() =>
+              setFishCount((c) => Math.min(MAX_FISH_COUNT, c + 1))
+            }
+            onResetFish={() => {
+              setGrowthBaselineBonus(environmentGrowth.fishBonusCount);
+              setFishCount(DEFAULT_FISH_COUNT);
+            }}
           />
-          <FishCountToggle isNight={isNight} fishCount={effectiveTankFishCount} />
-        </div>
-      }
-      playControls={
-        <PlayModeControls
-          isNight={isNight}
-          isFeedMode={isFeedMode}
-          onToggleFeedMode={() => setIsFeedMode((v) => !v)}
-          fishCount={fishCount}
-          displayFishCount={effectiveTankFishCount}
-          defaultFishCount={DEFAULT_FISH_COUNT}
-          maxFishCount={MAX_FISH_COUNT}
-          onAddFish={() =>
-            setFishCount((c) => Math.min(MAX_FISH_COUNT, c + 1))
-          }
-          onResetFish={() => {
-            setGrowthBaselineBonus(environmentGrowth.fishBonusCount);
-            setFishCount(DEFAULT_FISH_COUNT);
-          }}
-        />
-      }
-    />
+        }
+      />
+    </>
   );
 }
 
