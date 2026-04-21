@@ -48,15 +48,6 @@ type FoodPellet = {
   claimedBy: number;
 };
 
-type CanvasBoundsState = {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-  cssWidth: number;
-  cssHeight: number;
-};
-
 const MAX_FOOD_PELLETS = 20;
 const FOOD_LIFETIME_MS = 5000;
 /** Pass 1: fish within this range pick pellets before global assignment. */
@@ -106,35 +97,24 @@ function randBetween(min: number, max: number) {
 }
 
 function updatePointerCanvasState(
-  bounds: CanvasBoundsState,
+  canvas: HTMLCanvasElement,
   clientX: number,
   clientY: number,
   out: PointerCanvasState,
 ) {
-  const w = Math.max(1, bounds.cssWidth);
-  const h = Math.max(1, bounds.cssHeight);
-  const rw = Math.max(1e-6, bounds.right - bounds.left);
-  const rh = Math.max(1e-6, bounds.bottom - bounds.top);
-
-  out.x = ((clientX - bounds.left) / rw) * w;
-  out.y = ((clientY - bounds.top) / rh) * h;
-  out.inCanvas =
-    clientX >= bounds.left &&
-    clientX < bounds.right &&
-    clientY >= bounds.top &&
-    clientY < bounds.bottom;
-}
-
-function readCanvasBounds(canvas: HTMLCanvasElement): CanvasBoundsState {
   const rect = canvas.getBoundingClientRect();
-  return {
-    left: rect.left,
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    cssWidth: Math.max(1, canvas.clientWidth),
-    cssHeight: Math.max(1, canvas.clientHeight),
-  };
+  const w = Math.max(1, canvas.clientWidth);
+  const h = Math.max(1, canvas.clientHeight);
+  const rw = Math.max(1e-6, rect.width);
+  const rh = Math.max(1e-6, rect.height);
+
+  out.x = ((clientX - rect.left) / rw) * w;
+  out.y = ((clientY - rect.top) / rh) * h;
+  out.inCanvas =
+    clientX >= rect.left &&
+    clientX < rect.right &&
+    clientY >= rect.top &&
+    clientY < rect.bottom;
 }
 
 /**
@@ -2420,8 +2400,6 @@ function AquariumCanvasComponent({
     const foodSim = sim.food;
     const effectStartMs = performance.now();
     let rafId = 0;
-    let frameStartTimeoutId: ReturnType<typeof setTimeout> | 0 = 0;
-    let frameStartIdleId = 0;
     /** Clears Play cursor steering leftovers when leaving Play so Relax/Focus match legacy feel. */
     let lastPlayModeActive = false;
 
@@ -2521,12 +2499,7 @@ function AquariumCanvasComponent({
     };
 
     const onPointerClient = (clientX: number, clientY: number) => {
-      updatePointerCanvasState(
-        canvasBoundsRef.current,
-        clientX,
-        clientY,
-        pointerCanvasRef.current,
-      );
+      updatePointerCanvasState(canvas, clientX, clientY, pointerCanvasRef.current);
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -2578,17 +2551,6 @@ function AquariumCanvasComponent({
       }
       rafId = requestAnimationFrame(tick);
     };
-
-    const canvasBoundsRef = {
-      current: readCanvasBounds(canvas),
-    };
-    const syncCanvasBounds = () => {
-      canvasBoundsRef.current = readCanvasBounds(canvas);
-    };
-    const ro = new ResizeObserver(syncCanvasBounds);
-    ro.observe(canvas);
-    window.addEventListener("resize", syncCanvasBounds, { passive: true });
-    window.addEventListener("scroll", syncCanvasBounds, { passive: true });
 
     const onVisibilityChange = () => {
       if (document.visibilityState === "visible" && rafId === 0) {
@@ -2835,24 +2797,10 @@ function AquariumCanvasComponent({
       scheduleFrame();
     };
 
-    if ("requestIdleCallback" in globalThis) {
-      frameStartIdleId = requestIdleCallback(
-        () => scheduleFrame(),
-        { timeout: 450 },
-      );
-    } else {
-      frameStartTimeoutId = setTimeout(() => scheduleFrame(), 90);
-    }
+    scheduleFrame();
 
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      ro.disconnect();
-      window.removeEventListener("resize", syncCanvasBounds);
-      window.removeEventListener("scroll", syncCanvasBounds);
-      if (frameStartTimeoutId) clearTimeout(frameStartTimeoutId);
-      if (frameStartIdleId && "cancelIdleCallback" in globalThis) {
-        cancelIdleCallback(frameStartIdleId);
-      }
       if (rafId !== 0) cancelAnimationFrame(rafId);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerdown", onPointerDown);

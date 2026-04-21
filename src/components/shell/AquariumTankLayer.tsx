@@ -2,13 +2,7 @@
 
 import { Dancing_Script } from "next/font/google";
 import dynamic from "next/dynamic";
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from "react";
+import { useLayoutEffect, useRef, type MutableRefObject } from "react";
 import type { RelaxBreathAmbientState } from "@/src/lib/relax-breathing-cycle";
 import {
   aquariumPoetryTaglineColor,
@@ -55,28 +49,10 @@ export default function AquariumTankLayer({
   relaxBreathAmbientRef,
 }: AquariumTankLayerProps) {
   const { mode } = useAppMode();
-  const [canvasReady, setCanvasReady] = useState(false);
   const appModeRef = useRef(mode);
   useLayoutEffect(() => {
     appModeRef.current = mode;
   }, [mode]);
-
-  useEffect(() => {
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    let idleId: number | null = null;
-    const arm = () => setCanvasReady(true);
-    if ("requestIdleCallback" in globalThis) {
-      idleId = requestIdleCallback(arm, { timeout: 500 });
-    } else {
-      timeoutId = setTimeout(arm, 120);
-    }
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-      if (idleId !== null && "cancelIdleCallback" in globalThis) {
-        cancelIdleCallback(idleId);
-      }
-    };
-  }, []);
 
   const tagline = MODE_TAGLINES[mode];
   const poetryTheme = isNight ? "night" : "day";
@@ -127,15 +103,13 @@ export default function AquariumTankLayer({
           sceneVisible ? "opacity-100" : "opacity-0"
         }`}
       >
-        {canvasReady ? (
-          <AquariumCanvas
-            runtimeSettingsRef={runtimeSettingsRef}
-            feedModeRef={feedModeRef}
-            poemFontFamily={poemFontFamilyWithFallback}
-            appModeRef={appModeRef}
-            relaxBreathAmbientRef={relaxBreathAmbientRef}
-          />
-        ) : null}
+        <AquariumCanvas
+          runtimeSettingsRef={runtimeSettingsRef}
+          feedModeRef={feedModeRef}
+          poemFontFamily={poemFontFamilyWithFallback}
+          appModeRef={appModeRef}
+          relaxBreathAmbientRef={relaxBreathAmbientRef}
+        />
       </div>
     </div>
   );

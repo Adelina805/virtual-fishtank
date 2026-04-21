@@ -2,8 +2,10 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import PlayModeControls from "@/src/components/PlayModeControls";
 import ThemeToggle from "@/src/components/ThemeToggle";
 import AmbientAudioToggle from "@/src/components/AmbientAudioToggle";
+import FocusTimerDocumentTitleSync from "@/src/components/FocusTimerDocumentTitleSync";
 import AquariumTankLayer, {
   type PoetryLayout,
 } from "@/src/components/shell/AquariumTankLayer";
@@ -27,16 +29,6 @@ import { useUiSound } from "@/src/hooks/use-ui-sound";
 
 const FishCountToggle = dynamic(
   () => import("@/src/components/FishCountToggle"),
-  { ssr: false, loading: () => null },
-);
-
-const PlayModeControls = dynamic(
-  () => import("@/src/components/PlayModeControls"),
-  { ssr: false, loading: () => null },
-);
-
-const FocusTimerDocumentTitleSync = dynamic(
-  () => import("@/src/components/FocusTimerDocumentTitleSync"),
   { ssr: false, loading: () => null },
 );
 

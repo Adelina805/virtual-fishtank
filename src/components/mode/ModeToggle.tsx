@@ -56,8 +56,8 @@ export default function ModeToggle({ isNight, className = "" }: ModeToggleProps)
     : "rounded-xl border border-slate-900/10 bg-white/70 shadow-[0_12px_36px_-12px_rgba(15,23,42,0.14),inset_0_1px_0_0_rgba(255,255,255,0.75)] ring-1 ring-slate-900/10 backdrop-blur-2xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/58";
 
   const idleBtn = isNight
-    ? "touch-manipulation select-none rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white/75 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80 sm:px-3 sm:text-sm"
-    : "touch-manipulation select-none rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60 sm:px-3 sm:text-sm";
+    ? "touch-manipulation select-none rounded-lg px-2.5 py-1.5 text-xs font-semibold text-white/75 transition-[color,background-color] duration-200 hover:bg-white/[0.08] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80 sm:px-3 sm:text-sm"
+    : "touch-manipulation select-none rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-800 transition-[color,background-color] duration-200 hover:bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60 sm:px-3 sm:text-sm";
 
   const activeBtn = isNight
     ? "touch-manipulation select-none rounded-lg bg-white/[0.14] px-2.5 py-1.5 text-xs font-semibold text-white shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80 sm:px-3 sm:text-sm"

@@ -56,8 +56,8 @@ export default function ThemeToggle({
     : "rounded-xl border border-slate-900/8 bg-white/40 shadow-[0_8px_22px_-14px_rgba(15,23,42,0.18)] ring-1 ring-slate-900/8 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-white/28";
 
   const iconBtn = isNight
-    ? "touch-manipulation select-none grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/[0.88] transition-transform duration-200 ease-out hover:bg-white/[0.09] active:scale-[0.97] active:bg-white/[0.12] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
-    : "touch-manipulation select-none grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-950 transition-transform duration-200 ease-out hover:bg-white/90 active:scale-[0.97] active:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60";
+    ? "touch-manipulation select-none grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/[0.88] transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/[0.09] active:scale-[0.97] active:bg-white/[0.12] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300/80"
+    : "touch-manipulation select-none grid h-8 w-8 shrink-0 place-items-center rounded-lg text-slate-950 transition-[color,background-color,transform] duration-200 ease-out hover:bg-white/90 active:scale-[0.97] active:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500/60";
 
   return (
     <div className="pointer-events-auto w-max">
