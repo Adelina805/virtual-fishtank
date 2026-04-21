@@ -10,7 +10,6 @@ import {
 } from "@/src/lib/aquarium-poetry-colors";
 import { MODE_TAGLINES } from "@/src/lib/mode-taglines";
 import {
-  getAquariumPoetryLayout,
   type AquariumPoetryLayout,
   type AquariumRuntimeSettings,
 } from "@/src/lib/aquarium-runtime";
@@ -24,6 +23,7 @@ const AquariumCanvas = dynamic(
 const poemFont = Dancing_Script({
   subsets: ["latin"],
   weight: ["400", "600"],
+  display: "swap",
 });
 
 export type PoetryLayout = AquariumPoetryLayout;
@@ -56,40 +56,47 @@ export default function AquariumTankLayer({
 
   const tagline = MODE_TAGLINES[mode];
   const poetryTheme = isNight ? "night" : "day";
+  const poemFontFamilyWithFallback = `${poemFont.style.fontFamily}, ui-serif, Georgia, serif`;
+  const titleFontSize = poetryLayout?.titleSize ?? "clamp(2.15rem, 6.3vw, 3.15rem)";
+  const titleLineHeight = poetryLayout?.titleLineHeight ?? 50;
+  const lineFontSize = poetryLayout?.lineSize ?? "clamp(1.05rem, 3.3vw, 1.35rem)";
+  const lineHeight = poetryLayout?.lineHeight ?? 32;
+  const taglinesMarginTop = poetryLayout?.taglinesMarginTop ?? "0.28em";
+  const paddingTop = poetryLayout?.paddingTop ?? "clamp(4.25rem, 13vh, 7.25rem)";
 
   return (
     <div ref={tankMeasureRef} className="absolute inset-0 z-0 min-h-0">
-      {poetryLayout ? (
-        <div
-          className="pointer-events-none absolute inset-0 z-0 flex justify-center opacity-[0.01] select-none"
-          style={{ paddingTop: poetryLayout.paddingTop }}
-          aria-hidden
-        >
-          <div className={`w-full text-center ${poemFont.className}`}>
-            <p
-              className="m-0 font-semibold"
-              style={{
-                fontSize: poetryLayout.titleSize,
-                lineHeight: `${poetryLayout.titleLineHeight}px`,
-                color: aquariumPoetryTitleColor(poetryTheme),
-              }}
-            >
-              Aquacalma
-            </p>
-            <p
-              className="m-0 max-w-[min(92vw,36rem)] font-normal"
-              style={{
-                marginTop: poetryLayout.taglinesMarginTop,
-                fontSize: poetryLayout.lineSize,
-                lineHeight: `${poetryLayout.lineHeight}px`,
-                color: aquariumPoetryTaglineColor(poetryTheme),
-              }}
-            >
-              {tagline}
-            </p>
-          </div>
+      <div
+        className="pointer-events-none absolute inset-0 z-0 flex justify-center opacity-[0.01] select-none"
+        style={{ paddingTop }}
+        aria-hidden
+      >
+        <div className={`w-full text-center ${poemFont.className}`}>
+          <p
+            className="m-0 font-semibold"
+            style={{
+              fontSize: titleFontSize,
+              lineHeight: `${titleLineHeight}px`,
+              fontFamily: poemFontFamilyWithFallback,
+              color: aquariumPoetryTitleColor(poetryTheme),
+            }}
+          >
+            Aquacalma
+          </p>
+          <p
+            className="m-0 max-w-[min(92vw,36rem)] font-normal"
+            style={{
+              marginTop: taglinesMarginTop,
+              fontSize: lineFontSize,
+              lineHeight: `${lineHeight}px`,
+              fontFamily: poemFontFamilyWithFallback,
+              color: aquariumPoetryTaglineColor(poetryTheme),
+            }}
+          >
+            {tagline}
+          </p>
         </div>
-      ) : null}
+      </div>
 
       <div
         className={`relative z-10 flex h-full min-h-0 flex-col transition-opacity duration-1400 ease-out ${
@@ -99,7 +106,7 @@ export default function AquariumTankLayer({
         <AquariumCanvas
           runtimeSettingsRef={runtimeSettingsRef}
           feedModeRef={feedModeRef}
-          poemFontFamily={poemFont.style.fontFamily}
+          poemFontFamily={poemFontFamilyWithFallback}
           appModeRef={appModeRef}
           relaxBreathAmbientRef={relaxBreathAmbientRef}
         />

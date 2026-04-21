@@ -37,8 +37,8 @@ function HomeAquariumExperienceContent() {
   const [fishCount, setFishCount] = useState(DEFAULT_FISH_COUNT);
   const [growthBaselineBonus, setGrowthBaselineBonus] = useState(0);
   const [isFeedMode, setIsFeedMode] = useState(false);
-  const [sceneVisible, setSceneVisible] = useState(false);
-  const [controlsVisible, setControlsVisible] = useState(false);
+  const [sceneVisible] = useState(true);
+  const [controlsVisible] = useState(true);
   const [poetryLayout, setPoetryLayout] = useState<PoetryLayout | null>(null);
   const { isEnabled: isAmbientAudioEnabled, toggleEnabled: toggleAmbientAudio } =
     useAmbientAudio({
@@ -101,15 +101,6 @@ function HomeAquariumExperienceContent() {
     window.localStorage.setItem("aquacalma-ambience", value);
     window.localStorage.setItem("theme", isNight ? "dark" : "light");
   }, [isNight]);
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => setSceneVisible(true));
-    const controlsTimer = window.setTimeout(() => setControlsVisible(true), 450);
-    return () => {
-      cancelAnimationFrame(frame);
-      window.clearTimeout(controlsTimer);
-    };
-  }, []);
 
   useLayoutEffect(() => {
     const el = tankMeasureRef.current;
