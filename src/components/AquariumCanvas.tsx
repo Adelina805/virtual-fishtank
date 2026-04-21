@@ -97,27 +97,24 @@ function randBetween(min: number, max: number) {
 }
 
 function updatePointerCanvasState(
-  layout: {
-    left: number;
-    top: number;
-    right: number;
-    bottom: number;
-    rw: number;
-    rh: number;
-    w: number;
-    h: number;
-  },
+  canvas: HTMLCanvasElement,
   clientX: number,
   clientY: number,
   out: PointerCanvasState,
 ) {
-  out.x = ((clientX - layout.left) / layout.rw) * layout.w;
-  out.y = ((clientY - layout.top) / layout.rh) * layout.h;
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(1, canvas.clientWidth);
+  const h = Math.max(1, canvas.clientHeight);
+  const rw = Math.max(1e-6, rect.width);
+  const rh = Math.max(1e-6, rect.height);
+
+  out.x = ((clientX - rect.left) / rw) * w;
+  out.y = ((clientY - rect.top) / rh) * h;
   out.inCanvas =
-    clientX >= layout.left &&
-    clientX < layout.right &&
-    clientY >= layout.top &&
-    clientY < layout.bottom;
+    clientX >= rect.left &&
+    clientX < rect.right &&
+    clientY >= rect.top &&
+    clientY < rect.bottom;
 }
 
 /**
@@ -2403,31 +2400,6 @@ function AquariumCanvasComponent({
     const foodSim = sim.food;
     const effectStartMs = performance.now();
     let rafId = 0;
-    const pointerLayout = {
-      left: 0,
-      top: 0,
-      right: 0,
-      bottom: 0,
-      rw: 1,
-      rh: 1,
-      w: 1,
-      h: 1,
-    };
-
-    const refreshPointerLayout = () => {
-      const rect = canvas.getBoundingClientRect();
-      const w = Math.max(1, canvas.clientWidth);
-      const h = Math.max(1, canvas.clientHeight);
-      pointerLayout.left = rect.left;
-      pointerLayout.top = rect.top;
-      pointerLayout.right = rect.right;
-      pointerLayout.bottom = rect.bottom;
-      pointerLayout.rw = Math.max(1e-6, rect.width);
-      pointerLayout.rh = Math.max(1e-6, rect.height);
-      pointerLayout.w = w;
-      pointerLayout.h = h;
-    };
-    refreshPointerLayout();
     /** Clears Play cursor steering leftovers when leaving Play so Relax/Focus match legacy feel. */
     let lastPlayModeActive = false;
 
@@ -2497,8 +2469,8 @@ function AquariumCanvasComponent({
       const p = pointerCanvasRef.current;
       if (!p.inCanvas) return;
       const now = performance.now();
-      const w = pointerLayout.w;
-      const h = pointerLayout.h;
+      const w = Math.max(1, canvas.clientWidth);
+      const h = Math.max(1, canvas.clientHeight);
       const dx = p.x - pointerSpawn.lastX;
       const dy = p.y - pointerSpawn.lastY;
       const dist = Math.hypot(dx, dy);
@@ -2527,12 +2499,7 @@ function AquariumCanvasComponent({
     };
 
     const onPointerClient = (clientX: number, clientY: number) => {
-      updatePointerCanvasState(
-        pointerLayout,
-        clientX,
-        clientY,
-        pointerCanvasRef.current,
-      );
+      updatePointerCanvasState(canvas, clientX, clientY, pointerCanvasRef.current);
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -2544,8 +2511,8 @@ function AquariumCanvasComponent({
       onPointerClient(e.clientX, e.clientY);
       const p = pointerCanvasRef.current;
       if (!p.inCanvas) return;
-      const w = pointerLayout.w;
-      const h = pointerLayout.h;
+      const w = Math.max(1, canvas.clientWidth);
+      const h = Math.max(1, canvas.clientHeight);
       const now = performance.now();
       pointerSpawn.lastT = now;
       pointerSpawn.lastX = p.x;
@@ -2572,25 +2539,10 @@ function AquariumCanvasComponent({
       pointerSpawn.initialized = false;
     };
 
-    const onPointerEnter = () => {
-      refreshPointerLayout();
-    };
-
-    const onWindowResizeOrScroll = () => {
-      refreshPointerLayout();
-    };
-
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerdown", onPointerDown);
-    canvas.addEventListener("pointerenter", onPointerEnter);
     canvas.addEventListener("pointerleave", onPointerLeave);
     canvas.addEventListener("pointercancel", onPointerCancel);
-    window.addEventListener("resize", onWindowResizeOrScroll);
-    window.addEventListener("orientationchange", onWindowResizeOrScroll);
-    window.addEventListener("scroll", onWindowResizeOrScroll, {
-      passive: true,
-      capture: true,
-    });
 
     const scheduleFrame = () => {
       if (document.visibilityState === "hidden") {
@@ -2677,7 +2629,6 @@ function AquariumCanvasComponent({
           ? true
           : cssWDelta >= 2 || cssHDelta >= 2;
       if (shouldResetForCssSize) {
-        refreshPointerLayout();
         sim.lastCssW = cssW;
         sim.lastCssH = cssH;
         sim.poetryRaster = null;
@@ -2853,12 +2804,8 @@ function AquariumCanvasComponent({
       if (rafId !== 0) cancelAnimationFrame(rafId);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerdown", onPointerDown);
-      canvas.removeEventListener("pointerenter", onPointerEnter);
       canvas.removeEventListener("pointerleave", onPointerLeave);
       canvas.removeEventListener("pointercancel", onPointerCancel);
-      window.removeEventListener("resize", onWindowResizeOrScroll);
-      window.removeEventListener("orientationchange", onWindowResizeOrScroll);
-      window.removeEventListener("scroll", onWindowResizeOrScroll, true);
       simulationRef.current = null;
     };
   }, [
