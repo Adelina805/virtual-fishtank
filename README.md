@@ -56,5 +56,8 @@ The work positions attention, stillness, and interaction as literary elements, w
 | Ambient audio track (royalty-free): [Aquarium Fish by Magiksolo](https://pixabay.com/music/beats-aquarium-fish-132518/) | Next.js React TypeScript Tailwind CSS |
 
 
-  
-*thank you for visiting :)*
+<p align="center">
+  <img src="./public/audio/adelina.jpeg" alt="Adelina" width="400" />
+  <br />
+  <i>thank you for visiting :)</i>
+</p>
