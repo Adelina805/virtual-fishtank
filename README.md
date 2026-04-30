@@ -48,13 +48,13 @@ Instead of presenting traditional written narrative, the piece expresses meaning
 
 The work positions attention, stillness, and interaction as literary elements, where the system itself becomes the medium of expression. In this way, Aquacalma aligns with electronic literature practices that expand storytelling beyond static text into dynamic, participatory environments.
 
+## **Credits**
 
+Ambient audio track (royalty-free): [Aquarium Fish by Magiksolo](https://pixabay.com/music/beats-aquarium-fish-132518/)
 
+## **Stack / Tools**
 
-| Credits                                                                                                                 | Stack                                 |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Ambient audio track (royalty-free): [Aquarium Fish by Magiksolo](https://pixabay.com/music/beats-aquarium-fish-132518/) | Next.js React TypeScript Tailwind CSS |
-
+Next.js, React, TypeScript, Tailwind, CSS, Vercel, Cursor, ChatGPT
 
 <p align="center">
   <img src="./public/audio/adelina.jpeg" alt="Adelina" width="400" />
