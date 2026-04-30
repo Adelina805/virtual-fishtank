@@ -42,7 +42,7 @@ Instead of presenting traditional written narrative, the piece expresses meaning
 
 The work positions attention, stillness, and interaction as literary elements, where the system itself becomes the medium of expression. In this way, Aquacalma aligns with electronic literature practices that expand storytelling beyond static text into dynamic, participatory environments.
 
-<table>
+<table width="100%">
   <tr>
     <td valign="top" width="50%">
 
