@@ -55,5 +55,6 @@ The work positions attention, stillness, and interaction as literary elements, w
 
 <p align="center">
   <img src="./public/audio/adelina.jpeg" alt="Adelina" width="400" />
+  <br />
   <i>thank you for visiting :)</i>
 </p>
