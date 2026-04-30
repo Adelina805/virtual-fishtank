@@ -54,7 +54,7 @@ The work positions attention, stillness, and interaction as literary elements, w
 - Tailwind CSS
 
 <p align="center">
-  <img src="./public/audio/adelina.jpeg" alt="Adelina" />
+  <img src="./public/audio/adelina.jpeg" alt="Adelina" width="200" />
 </p>
 
 *thank you for visiting :)*
